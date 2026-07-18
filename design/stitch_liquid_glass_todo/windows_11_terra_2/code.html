@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TaskFlow Calendar View</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&amp;family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#ffdad8",
+                        "surface-container-high": "#eae6de",
+                        "secondary-fixed": "#f0e8db",
+                        "on-primary-fixed": "#002110",
+                        "surface-variant": "#e4e0d8",
+                        "surface-bright": "#faf6f0",
+                        "on-secondary-container": "#5e5548",
+                        "inverse-surface": "#2e3230",
+                        "secondary": "#6b6358",
+                        "on-surface-variant": "#4a4e4a",
+                        "surface-dim": "#dbd7cf",
+                        "primary-fixed": "#c8e8d0",
+                        "primary-container": "#78a886",
+                        "outline-variant": "#c4c8bc",
+                        "tertiary-fixed": "#f8e0a8",
+                        "on-tertiary-container": "#554020",
+                        "on-surface": "#2e3230",
+                        "error": "#b83230",
+                        "on-error-container": "#690005",
+                        "tertiary-container": "#c4a66a",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#8ecf9e",
+                        "surface-container-highest": "#e4e0d8",
+                        "secondary-fixed-dim": "#d4ccbf",
+                        "background": "#faf6f0",
+                        "surface-container-low": "#f5f1ea",
+                        "tertiary": "#705c30",
+                        "outline": "#74796e",
+                        "inverse-primary": "#8ecf9e",
+                        "on-tertiary-fixed-variant": "#554020",
+                        "surface-tint": "#4a7c59",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary-container": "#d8f0de",
+                        "on-background": "#2e3230",
+                        "tertiary-fixed-dim": "#dcc48e",
+                        "inverse-on-surface": "#f5f0e8",
+                        "on-tertiary": "#ffffff",
+                        "secondary-container": "#f0e8db",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed-variant": "#2a6038",
+                        "surface": "#faf6f0",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#f0ece4",
+                        "on-secondary-fixed-variant": "#4a4538",
+                        "primary": "#4a7c59",
+                        "on-tertiary-fixed": "#221a05",
+                        "on-secondary-fixed": "#1e1a13"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {},
+                    "fontFamily": {
+                        "headline": ["Literata"],
+                        "display": ["Literata"],
+                        "body": ["Nunito Sans"],
+                        "label": ["Nunito Sans"]
+                    },
+                    "fontSize": {}
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Nunito Sans', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .font-headline, .font-display { font-family: 'Literata', serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .material-symbols-outlined[data-weight="fill"] { font-variation-settings: 'FILL' 1; }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased flex h-screen overflow-hidden">
+<!-- SideNavBar -->
+<nav class="bg-surface-container-low dark:bg-surface-dim h-screen w-64 border-r border-outline-variant/30 fixed left-0 top-0 flex flex-col py-6 flex-shrink-0">
+<div class="px-6 mb-8 flex items-center gap-4">
+<img alt="TaskFlow User Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant/30" data-alt="A warm, earthy-toned portrait photograph of a young woman with a calm expression. The lighting is soft and natural, emphasizing a natural, unhurried mood. The background is softly blurred in warm beige tones, fitting the Terra aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzCbtkSMCV2fdRgPf1Ub-_I8TjnXcdgSN2T1QKn9sGZraMmKMNmSMdPglSBu_28esVApnQmRQcvHyQaIMG2iNFZqOsieeK-DG47Bpu-Q7utDrquQmBY-IEVFaWduRF0mzCk8WBHEJrytKAs4XcuiJNLbgpawZ1ODLQRolV9-uW4PPB1iDDS6oRaHPR5vyNhl9KX0-0DTLQE7ICOZ8Ek1jCjegkyMrdu8X5bBob57JwzJU7Pgr0Vhc_CKvlAjjgbG4nIWqzn5q8Drs"/>
+<div>
+<h1 class="font-headline text-2xl font-bold text-primary dark:text-primary-fixed-dim">TaskFlow</h1>
+<p class="font-body text-label-large text-secondary">Productivity Portal</p>
+</div>
+</div>
+<div class="px-4 mb-6">
+<button class="w-full bg-primary text-on-primary rounded-xl py-3 px-4 font-bold flex items-center justify-center gap-2 hover:bg-surface-tint/90 transition-colors duration-200 scale-95 active:scale-90 shadow-sm" style="box-shadow: 0 4px 20px rgba(46, 50, 48, 0.06);">
+<span class="material-symbols-outlined">add</span>
+                New Task
+            </button>
+</div>
+<ul class="flex flex-col gap-1 flex-grow overflow-y-auto font-body text-label-large">
+<li>
+<a class="text-secondary hover:text-primary mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                    Dashboard
+                </a>
+</li>
+<li>
+<a class="bg-primary-container text-on-primary-container font-bold rounded-lg mx-2 px-4 py-3 flex items-center gap-3 transition-colors duration-200" href="#">
+<span class="material-symbols-outlined" data-weight="fill">calendar_month</span>
+                    Calendar
+                </a>
+</li>
+<li>
+<a class="text-secondary hover:text-primary mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">query_stats</span>
+                    Stats
+                </a>
+</li>
+<li>
+<a class="text-secondary hover:text-primary mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+                    Projects
+                </a>
+</li>
+<li class="mt-auto">
+<a class="text-secondary hover:text-primary mx-2 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high dark:hover:bg-surface-variant transition-colors duration-200 rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+                    Settings
+                </a>
+</li>
+</ul>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col h-full bg-background relative">
+<!-- TopAppBar -->
+<header class="bg-background/80 dark:bg-background/80 backdrop-blur-md flex justify-between items-center h-16 px-8 shadow-sm flex-shrink-0 z-10 sticky top-0">
+<div class="flex items-center gap-4">
+<h2 class="font-headline text-headline-sm text-primary dark:text-primary-fixed-dim font-bold">October 2023</h2>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-highest rounded-full transition-all focus-within:ring-2 focus-within:ring-primary/50">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-highest rounded-full transition-all focus-within:ring-2 focus-within:ring-primary/50">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative focus-within:ring-2 focus-within:ring-primary/50 transition-all rounded-full hidden md:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="bg-surface-container pl-10 pr-4 py-2 rounded-full border-none text-on-surface focus:outline-none focus:ring-0 w-64 font-body placeholder-on-surface-variant" placeholder="Search tasks..." type="text"/>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-highest rounded-full transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-highest rounded-full transition-all">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+</header>
+<!-- Content Layout: Grid + Side Panel -->
+<div class="flex flex-1 overflow-hidden p-8 gap-8">
+<!-- Calendar Grid -->
+<div class="flex-1 bg-surface-bright rounded-xl border border-outline-variant/30 flex flex-col overflow-hidden" style="box-shadow: 0 4px 20px rgba(46, 50, 48, 0.06);">
+<!-- Day Headers -->
+<div class="grid grid-cols-7 border-b border-outline-variant/30 bg-surface-container-low text-secondary font-bold text-sm text-center py-3 uppercase tracking-wider">
+<div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+</div>
+<!-- Grid Cells -->
+<div class="flex-1 grid grid-cols-7 grid-rows-5 bg-outline-variant/20 gap-[1px]">
+<!-- Sample Days (Row 1) -->
+<div class="bg-surface-bright p-2 flex flex-col text-on-surface-variant opacity-50"><span class="text-right text-sm">24</span></div>
+<div class="bg-surface-bright p-2 flex flex-col text-on-surface-variant opacity-50"><span class="text-right text-sm">25</span></div>
+<div class="bg-surface-bright p-2 flex flex-col text-on-surface-variant opacity-50"><span class="text-right text-sm">26</span></div>
+<div class="bg-surface-bright p-2 flex flex-col text-on-surface-variant opacity-50"><span class="text-right text-sm">27</span></div>
+<div class="bg-surface-bright p-2 flex flex-col text-on-surface-variant opacity-50"><span class="text-right text-sm">28</span></div>
+<div class="bg-surface-bright p-2 flex flex-col text-on-surface-variant opacity-50"><span class="text-right text-sm">29</span></div>
+<div class="bg-surface-bright p-2 flex flex-col text-on-surface-variant opacity-50"><span class="text-right text-sm">30</span></div>
+<!-- Sample Days (Row 2) -->
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">1</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">2</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">3</span>
+<div class="mt-1 bg-primary-container text-on-primary-container text-xs rounded px-2 py-1 truncate">Team Sync</div>
+</div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">4</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">5</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">6</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">7</span></div>
+<!-- Sample Days (Row 3 - Contains Current Day) -->
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">8</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">9</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">10</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">11</span></div>
+<!-- Current Day Selected -->
+<div class="bg-secondary-fixed/50 p-2 flex flex-col ring-2 ring-primary inset-0 relative z-10">
+<div class="flex justify-between items-center mb-1">
+<span class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center text-sm font-bold shadow-sm">12</span>
+</div>
+<div class="space-y-1 mt-1 overflow-y-auto">
+<div class="bg-tertiary-container text-on-tertiary-container text-xs rounded px-2 py-1 truncate border border-tertiary/20">Design Review</div>
+<div class="bg-surface-container text-on-surface text-xs rounded px-2 py-1 truncate border border-outline-variant/50">Client Call</div>
+</div>
+</div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">13</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">14</span></div>
+<!-- Row 4 -->
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">15</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">16</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">17</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">18</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">19</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">20</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">21</span></div>
+<!-- Row 5 -->
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">22</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">23</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">24</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">25</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">26</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">27</span></div>
+<div class="bg-surface-bright p-2 flex flex-col"><span class="text-right font-bold text-sm">28</span></div>
+</div>
+</div>
+<!-- Side Panel (Selected Day Details) -->
+<aside class="w-80 bg-surface-container-lowest rounded-xl border border-outline-variant/30 flex flex-col overflow-hidden" style="box-shadow: 0 4px 20px rgba(46, 50, 48, 0.06);">
+<div class="p-6 border-b border-outline-variant/30 bg-surface-bright">
+<h3 class="font-headline text-xl text-on-surface font-bold">Thursday</h3>
+<p class="text-primary font-bold text-lg">October 12</p>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-4">
+<!-- Task Item -->
+<div class="bg-surface-container p-4 rounded-xl border border-outline-variant/20 hover:bg-surface-container-high transition-colors cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<span class="text-xs font-bold text-tertiary uppercase tracking-wide">Design</span>
+<span class="text-xs text-secondary bg-surface-bright px-2 py-1 rounded-md border border-outline-variant/20">10:00 AM</span>
+</div>
+<h4 class="font-bold text-on-surface text-sm mb-1 group-hover:text-primary transition-colors">Terra Design Review</h4>
+<p class="text-xs text-on-surface-variant line-clamp-2">Review updated component library and spacing guidelines with the front-end team.</p>
+</div>
+<!-- Task Item -->
+<div class="bg-surface-container p-4 rounded-xl border border-outline-variant/20 hover:bg-surface-container-high transition-colors cursor-pointer group">
+<div class="flex justify-between items-start mb-2">
+<span class="text-xs font-bold text-primary uppercase tracking-wide">Client</span>
+<span class="text-xs text-secondary bg-surface-bright px-2 py-1 rounded-md border border-outline-variant/20">2:00 PM</span>
+</div>
+<h4 class="font-bold text-on-surface text-sm mb-1 group-hover:text-primary transition-colors">Monthly Sync</h4>
+<p class="text-xs text-on-surface-variant line-clamp-2">Discuss Q4 goals and present initial concepts for the new dashboard layout.</p>
+</div>
+<!-- Task Item -->
+<div class="bg-surface-container p-4 rounded-xl border border-outline-variant/20 hover:bg-surface-container-high transition-colors cursor-pointer group opacity-60">
+<div class="flex justify-between items-start mb-2">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Admin</span>
+<span class="text-xs text-secondary bg-surface-bright px-2 py-1 rounded-md border border-outline-variant/20">4:30 PM</span>
+</div>
+<h4 class="font-bold text-on-surface text-sm mb-1 line-through">Submit Timesheets</h4>
+<p class="text-xs text-on-surface-variant line-clamp-2">End of week administrative tasks.</p>
+</div>
+</div>
+<div class="p-4 border-t border-outline-variant/30 bg-surface-bright">
+<button class="w-full bg-surface-bright text-primary border border-primary/30 rounded-xl py-2 px-4 font-bold flex items-center justify-center gap-2 hover:bg-primary-container hover:border-primary transition-colors duration-200">
+<span class="material-symbols-outlined text-sm">edit_calendar</span>
+                        Add Event
+                    </button>
+</div>
+</aside>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,38 @@
+{
+  "name": "terra-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "NestJS backend for Terra task synchronization.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "build": "nest build",
+    "typecheck": "tsc --noEmit",
+    "test:travel-smoke": "node scripts/travel-smoke.cjs",
+    "test:rag-smoke": "node scripts/rag-smoke.cjs",
+    "test:rag-external": "node scripts/rag-external-smoke.cjs",
+    "test:access-smoke": "node scripts/access-smoke.cjs",
+    "backup": "node scripts/terra-backup.cjs",
+    "test:backup-smoke": "node scripts/backup-smoke.cjs",
+    "test:secrets-smoke": "node scripts/secrets-smoke.cjs",
+    "test:rag-load": "node scripts/rag-load.cjs",
+    "test:xiaomi-boundary": "node scripts/xiaomi-boundary-smoke.cjs",
+    "test:resource-sync": "node scripts/resource-sync-smoke.cjs",
+    "test:xiaomi-history": "node scripts/xiaomi-history-smoke.cjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.15",
+    "@nestjs/core": "^10.4.15",
+    "@nestjs/platform-express": "^10.4.15",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.9",
+    "@types/node": "^22.10.0",
+    "typescript": "~5.6.2"
+  }
+}

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TaskFlow - Task Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#2a4c4c",
+                    "inverse-primary": "#a9cecc",
+                    "tertiary-container": "#976d5d",
+                    "error-container": "#ffdad6",
+                    "background": "#fbf9f8",
+                    "tertiary-fixed": "#ffdbce",
+                    "on-background": "#1b1c1c",
+                    "surface-container-high": "#e9e8e7",
+                    "surface-container-highest": "#e4e2e2",
+                    "on-secondary-fixed": "#0f1d26",
+                    "surface-variant": "#e4e2e2",
+                    "tertiary-fixed-dim": "#eebba9",
+                    "on-tertiary-fixed-variant": "#613e30",
+                    "primary-fixed": "#c4eae8",
+                    "surface-tint": "#426464",
+                    "tertiary": "#7c5546",
+                    "inverse-on-surface": "#f2f0f0",
+                    "surface-container": "#efeded",
+                    "outline-variant": "#c1c8c7",
+                    "secondary-fixed": "#d5e5f1",
+                    "on-primary": "#ffffff",
+                    "secondary": "#52606b",
+                    "error": "#ba1a1a",
+                    "surface": "#fbf9f8",
+                    "secondary-container": "#d5e5f1",
+                    "primary-container": "#5a7d7c",
+                    "on-error": "#ffffff",
+                    "surface-dim": "#dbdad9",
+                    "surface-container-low": "#f5f3f3",
+                    "surface-bright": "#fbf9f8",
+                    "on-tertiary-container": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "outline": "#717978",
+                    "primary": "#416463",
+                    "on-primary-fixed": "#00201f",
+                    "on-error-container": "#93000a",
+                    "on-secondary-container": "#586671",
+                    "secondary-fixed-dim": "#b9c9d4",
+                    "on-secondary-fixed-variant": "#3a4952",
+                    "on-surface": "#1b1c1c",
+                    "surface-container-lowest": "#ffffff",
+                    "on-surface-variant": "#414848",
+                    "on-primary-container": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "primary-fixed-dim": "#a9cecc",
+                    "on-tertiary-fixed": "#2f1409",
+                    "inverse-surface": "#303031"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "20px",
+                    "base": "4px",
+                    "xs": "8px",
+                    "margin-mobile": "20px",
+                    "lg": "40px",
+                    "margin-desktop": "120px",
+                    "md": "24px",
+                    "xl": "64px",
+                    "sm": "16px"
+            },
+            "fontFamily": {
+                    "headline-lg-mobile": ["Noto Serif"],
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Noto Serif"],
+                    "title-md": ["Noto Serif"],
+                    "display-lg": ["Noto Serif"],
+                    "body-md": ["Plus Jakarta Sans"],
+                    "body-lg": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "title-md": ["20px", {"lineHeight": "1.4", "fontWeight": "500"}],
+                    "display-lg": ["40px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #fbf9f8;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .serif-text { font-family: 'Noto Serif', serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Micro-interactions */
+        .priority-indicator {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .day-item {
+            transition: all 0.3s ease;
+        }
+        
+        .interactive-btn {
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .interactive-btn:active {
+            transform: scale(0.96);
+        }
+
+        .input-transition {
+            transition: border-color 0.3s ease, box-shadow 0.3s ease, ring 0.3s ease;
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="text-on-background">
+<!-- Top AppBar -->
+<header class="fixed top-0 w-full bg-background z-50 flex justify-between items-center px-margin-mobile h-16 border-b border-outline-variant/30">
+<button class="flex items-center justify-center w-10 h-10 hover:opacity-70 transition-opacity duration-200 active:scale-90" onclick="history.back()">
+<span class="material-symbols-outlined text-on-surface">arrow_back</span>
+</button>
+<h1 class="text-title-md font-title-md text-on-background">Task Details</h1>
+<div class="w-10"></div>
+</header>
+<main class="pt-20 pb-32 px-margin-mobile max-w-screen-xl mx-auto">
+<!-- Task Header -->
+<section class="mb-lg">
+<textarea class="w-full bg-transparent border-none focus:ring-0 p-0 serif-text text-headline-lg-mobile font-headline-lg-mobile text-on-background resize-none overflow-hidden" placeholder="Task Title" rows="2">Review Q3 Financial Report</textarea>
+</section>
+<!-- Category Selector -->
+<section class="mb-lg">
+<h3 class="text-label-sm font-label-sm text-on-surface-variant mb-sm uppercase tracking-wider">Category</h3>
+<div class="flex gap-xs overflow-x-auto hide-scrollbar">
+<button class="flex-none px-md py-xs rounded-xl bg-primary-container text-on-primary-container font-label-sm text-label-sm border border-transparent transition-all active:scale-95">
+                    Work
+                </button>
+<button class="flex-none px-md py-xs rounded-xl bg-surface-container text-on-surface-variant font-label-sm text-label-sm border border-outline-variant/30 transition-all active:scale-95">
+                    Personal
+                </button>
+<button class="flex-none px-sm py-xs rounded-xl bg-surface-container text-on-surface-variant/50 border border-dashed border-outline-variant/50 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[18px] leading-none">add</span>
+</button>
+</div>
+</section>
+<!-- Date Picker (Horizontal Week View) -->
+<section class="mb-lg">
+<h3 class="text-label-sm font-label-sm text-on-surface-variant mb-sm uppercase tracking-wider">Schedule</h3>
+<div class="flex justify-between items-center bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-md" id="schedule-picker">
+<button class="day-item flex flex-col items-center opacity-40 group cursor-pointer" data-day="14">
+<span class="text-label-sm font-label-sm mb-1 group-hover:text-primary/70 transition-colors">MON</span>
+<span class="text-body-lg font-body-lg group-hover:scale-110 transition-transform">14</span>
+</button>
+<button class="day-item flex flex-col items-center opacity-40 group cursor-pointer" data-day="15">
+<span class="text-label-sm font-label-sm mb-1 group-hover:text-primary/70 transition-colors">TUE</span>
+<span class="text-body-lg font-body-lg group-hover:scale-110 transition-transform">15</span>
+</button>
+<button class="day-item flex flex-col items-center relative active-day" data-day="16">
+<span class="text-label-sm font-label-sm mb-1 text-primary">WED</span>
+<div class="w-10 h-10 flex items-center justify-center bg-primary text-on-primary rounded-full font-bold shadow-lg shadow-primary/20 transition-all duration-300">
+                        16
+                    </div>
+<div class="absolute -bottom-2 w-1 h-1 bg-primary rounded-full"></div>
+</button>
+<button class="day-item flex flex-col items-center group cursor-pointer" data-day="17">
+<span class="text-label-sm font-label-sm mb-1 group-hover:text-primary/70 transition-colors">THU</span>
+<span class="text-body-lg font-body-lg group-hover:scale-110 transition-transform">17</span>
+</button>
+<button class="day-item flex flex-col items-center group cursor-pointer" data-day="18">
+<span class="text-label-sm font-label-sm mb-1 group-hover:text-primary/70 transition-colors">FRI</span>
+<span class="text-body-lg font-body-lg group-hover:scale-110 transition-transform">18</span>
+</button>
+<button class="day-item flex flex-col items-center group cursor-pointer" data-day="19">
+<span class="text-label-sm font-label-sm mb-1 group-hover:text-primary/70 transition-colors">SAT</span>
+<span class="text-body-lg font-body-lg group-hover:scale-110 transition-transform">19</span>
+</button>
+</div>
+</section>
+<!-- Priority Toggle (Sliding Background) -->
+<section class="mb-lg">
+<h3 class="text-label-sm font-label-sm text-on-surface-variant mb-sm uppercase tracking-wider">Priority</h3>
+<div class="relative flex bg-surface-container p-1 rounded-xl border border-outline-variant/20 overflow-hidden" id="priority-container">
+<!-- Sliding Background -->
+<div class="absolute top-1 left-1 w-[calc(33.333%-4px)] h-[calc(100%-8px)] bg-surface-container-lowest rounded-lg shadow-sm priority-indicator z-0 translate-x-[200%]" id="priority-slider"></div>
+<button class="flex-1 py-2 text-label-sm font-label-sm rounded-lg text-on-surface-variant relative z-10 transition-colors duration-300" data-priority="low">Low</button>
+<button class="flex-1 py-2 text-label-sm font-label-sm rounded-lg text-on-surface-variant relative z-10 transition-colors duration-300" data-priority="medium">Medium</button>
+<button class="flex-1 py-2 text-label-sm font-label-sm rounded-lg text-primary font-bold relative z-10 transition-colors duration-300" data-priority="high">High</button>
+</div>
+</section>
+<!-- Notes Input -->
+<section class="mb-xl">
+<h3 class="text-label-sm font-label-sm text-on-surface-variant mb-sm uppercase tracking-wider">Notes</h3>
+<div class="relative">
+<textarea class="input-transition w-full min-h-[160px] bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-md focus:ring-2 focus:ring-primary/20 focus:border-primary text-body-lg font-body-lg text-on-surface outline-none" placeholder="Add more details about this task..."></textarea>
+</div>
+</section>
+<!-- Contextual Visual -->
+<section class="mb-xl opacity-80">
+<div class="w-full h-48 rounded-xl overflow-hidden border border-outline-variant/30 relative">
+<img class="w-full h-full object-cover" data-alt="A serene, minimalist flat lay of an open leather-bound notebook" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXsdatbqXqL0Yi2DSE6WSRIqGKw9d3fgLzC23gcWbbit6cR54GJKuxcnWRGFQbE0u7L0geJ68IpwZ45yZdO4J06E1gLcAc_mAM-pFZwNVZKrOANfVeoKwHAIEDunW7bdL77j-e16turW6s8EW8JxpR9yR2by2SWltbhrcZTi0PNjtryONvvmYPWQpRIm3iL4YffCM841iPG90Q3a4inCjS6LlJiwtnycjWtw-BhKBWrcosae9hbU1znEweS6GeqQI1ppVjmeUvEtc"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent"></div>
+</div>
+</section>
+</main>
+<!-- Bottom Action Bar -->
+<div class="fixed bottom-0 left-0 w-full p-margin-mobile bg-gradient-to-t from-background via-background to-transparent pt-8">
+<button class="interactive-btn w-full py-4 bg-primary text-on-primary font-bold text-body-lg rounded-full shadow-lg shadow-primary/20">
+            Save Changes
+        </button>
+</div>
+<!-- Interactions Script -->
+<script>
+        // 1. Auto-expand textarea for title
+        const titleArea = document.querySelector('textarea');
+        if (titleArea) {
+            titleArea.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+            titleArea.dispatchEvent(new Event('input'));
+        }
+
+        // 2. Sliding Priority Toggle
+        const priorityContainer = document.getElementById('priority-container');
+        const slider = document.getElementById('priority-slider');
+        const priorityBtns = priorityContainer.querySelectorAll('button');
+
+        priorityBtns.forEach((btn, index) => {
+            btn.addEventListener('click', () => {
+                // Move slider
+                slider.style.transform = `translateX(${index * 100}%)`;
+                
+                // Update text styles
+                priorityBtns.forEach(b => {
+                    b.classList.remove('text-primary', 'font-bold');
+                    b.classList.add('text-on-surface-variant');
+                });
+                btn.classList.remove('text-on-surface-variant');
+                btn.classList.add('text-primary', 'font-bold');
+            });
+        });
+
+        // 3. Schedule Picker Interaction
+        const dayItems = document.querySelectorAll('.day-item');
+        dayItems.forEach(item => {
+            item.addEventListener('click', function() {
+                dayItems.forEach(di => {
+                    di.classList.add('opacity-40');
+                    di.classList.remove('active-day');
+                    const label = di.querySelector('.text-label-sm');
+                    const valueContainer = di.querySelector('div, .text-body-lg');
+                    
+                    label.classList.remove('text-primary');
+                    if (valueContainer.tagName === 'DIV') {
+                        // Revert active circle to simple text
+                        const dayNum = valueContainer.textContent.trim();
+                        const span = document.createElement('span');
+                        span.className = 'text-body-lg font-body-lg';
+                        span.textContent = dayNum;
+                        valueContainer.replaceWith(span);
+                        // Remove dot indicator
+                        const dot = di.querySelector('.absolute');
+                        if (dot) dot.remove();
+                    }
+                });
+
+                this.classList.remove('opacity-40');
+                this.classList.add('active-day');
+                const label = this.querySelector('.text-label-sm');
+                label.classList.add('text-primary');
+
+                const valueSpan = this.querySelector('.text-body-lg');
+                if (valueSpan) {
+                    const dayNum = valueSpan.textContent.trim();
+                    const div = document.createElement('div');
+                    div.className = 'w-10 h-10 flex items-center justify-center bg-primary text-on-primary rounded-full font-bold shadow-lg shadow-primary/20 transition-all duration-300 animate-in zoom-in-50';
+                    div.textContent = dayNum;
+                    valueSpan.replaceWith(div);
+
+                    const dot = document.createElement('div');
+                    dot.className = 'absolute -bottom-2 w-1 h-1 bg-primary rounded-full';
+                    this.appendChild(dot);
+                }
+            });
+        });
+    </script>
+</body></html>

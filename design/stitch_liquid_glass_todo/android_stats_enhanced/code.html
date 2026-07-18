@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TaskFlow - Your Progress</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed-variant": "#2a4c4c",
+                    "inverse-primary": "#a9cecc",
+                    "tertiary-container": "#976d5d",
+                    "error-container": "#ffdad6",
+                    "background": "#fbf9f8",
+                    "tertiary-fixed": "#ffdbce",
+                    "on-background": "#1b1c1c",
+                    "surface-container-high": "#e9e8e7",
+                    "surface-container-highest": "#e4e2e2",
+                    "on-secondary-fixed": "#0f1d26",
+                    "surface-variant": "#e4e2e2",
+                    "tertiary-fixed-dim": "#eebba9",
+                    "on-tertiary-fixed-variant": "#613e30",
+                    "primary-fixed": "#c4eae8",
+                    "surface-tint": "#426464",
+                    "tertiary": "#7c5546",
+                    "inverse-on-surface": "#f2f0f0",
+                    "surface-container": "#efeded",
+                    "outline-variant": "#c1c8c7",
+                    "secondary-fixed": "#d5e5f1",
+                    "on-primary": "#ffffff",
+                    "secondary": "#52606b",
+                    "error": "#ba1a1a",
+                    "surface": "#fbf9f8",
+                    "secondary-container": "#d5e5f1",
+                    "primary-container": "#5a7d7c",
+                    "on-error": "#ffffff",
+                    "surface-dim": "#dbdad9",
+                    "surface-container-low": "#f5f3f3",
+                    "surface-bright": "#fbf9f8",
+                    "on-tertiary-container": "#ffffff",
+                    "on-secondary": "#ffffff",
+                    "outline": "#717978",
+                    "primary": "#416463",
+                    "on-primary-fixed": "#00201f",
+                    "on-error-container": "#93000a",
+                    "on-secondary-container": "#586671",
+                    "secondary-fixed-dim": "#b9c9d4",
+                    "on-secondary-fixed-variant": "#3a4952",
+                    "on-surface": "#1b1c1c",
+                    "surface-container-lowest": "#ffffff",
+                    "on-surface-variant": "#414848",
+                    "on-primary-container": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "primary-fixed-dim": "#a9cecc",
+                    "on-tertiary-fixed": "#2f1409",
+                    "inverse-surface": "#303031"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "20px",
+                    "base": "4px",
+                    "xs": "8px",
+                    "margin-mobile": "20px",
+                    "lg": "40px",
+                    "margin-desktop": "120px",
+                    "md": "24px",
+                    "xl": "64px",
+                    "sm": "16px"
+            },
+            "fontFamily": {
+                    "headline-lg-mobile": ["Noto Serif"],
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Noto Serif"],
+                    "title-md": ["Noto Serif"],
+                    "display-lg": ["Noto Serif"],
+                    "body-md": ["Plus Jakarta Sans"],
+                    "body-lg": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "headline-lg-mobile": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "title-md": ["20px", {"lineHeight": "1.4", "fontWeight": "500"}],
+                    "display-lg": ["40px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #fbf9f8;
+            color: #1b1c1c;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .progress-ring-circle {
+            transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        .bar-grow {
+            transition: height 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            height: 0 !important;
+        }
+        .bar-grow.animate {
+            height: var(--target-height) !important;
+        }
+        .insight-card {
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .insight-card.animate {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        @keyframes countUp {
+            from { content: "0%"; }
+            to { content: "78%"; }
+        }
+    </style>
+<style>
+        body {
+          min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full bg-background/90 backdrop-blur-md border-b border-outline-variant/30 z-50">
+<div class="flex justify-between items-center px-margin-mobile h-16 w-full max-w-screen-xl mx-auto">
+<button class="active:scale-95 transition-transform hover:opacity-70">
+<span class="material-symbols-outlined text-primary">search</span>
+</button>
+<h1 class="text-title-md font-title-md text-on-background">TaskFlow</h1>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img class="w-full h-full object-cover" data-alt="A clean, professional portrait of a calm individual in a sunlit, minimalist office environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCf3N1OBfQa9gYol588P3dHljQ3x1RLdJrFu2L2IWwoWKdIpM19t0snVSCSU4sGsecHJyL2ZG9AaZ4BvFhOwNz358P4c_A0g7CwHgcKTkhMH_oLfT_oy6u80zXqtGJF4BuHGog-6ZgudipRNRSOjGWZbz1kKFfCTJzd24GZbakwY3IypOftPazg0UtnhodQoyj1Phsa29wAlZhVdbjiatxm1zyGXhgcpR2CrtLAIzHovlLVUc1QInshj_rrUyI1IeVohWgUmwVFQo8"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-32 px-margin-mobile max-w-screen-xl mx-auto space-y-lg">
+<!-- Header Section -->
+<section class="space-y-xs">
+<h2 class="text-headline-lg-mobile font-headline-lg-mobile text-on-background">Your Progress</h2>
+<p class="text-on-surface-variant font-body-md">Review your intellectual achievements and focus trends.</p>
+</section>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-sm">
+<!-- Completion Rate Card -->
+<div class="md:col-span-5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-md flex flex-col items-center justify-center space-y-md shadow-sm">
+<div class="relative w-40 h-40">
+<svg class="w-full h-full">
+<circle class="text-surface-container-highest" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-width="4"></circle>
+<circle class="text-primary progress-ring-circle" cx="80" cy="80" fill="transparent" id="progress-circle" r="70" stroke="currentColor" stroke-dasharray="440" stroke-dashoffset="440" stroke-linecap="round" stroke-width="4"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-headline-lg font-headline-lg text-primary" id="completion-text">0%</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant">COMPLETION</span>
+</div>
+</div>
+<div class="text-center">
+<h3 class="text-title-md font-title-md">Daily Goal</h3>
+<p class="text-body-md text-on-surface-variant">You're nearly there. Stay focused.</p>
+</div>
+</div>
+<!-- Stats Column -->
+<div class="md:col-span-7 grid grid-cols-1 gap-sm">
+<!-- Weekly Activity Bar Chart Card -->
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-md space-y-md shadow-sm">
+<div class="flex justify-between items-end">
+<h3 class="text-title-md font-title-md">Weekly Activity</h3>
+<span class="text-label-sm font-label-sm text-primary">LAST 7 DAYS</span>
+</div>
+<div class="flex items-end justify-between h-32 px-2">
+<!-- Chart Bars -->
+<div class="flex flex-col items-center gap-2 w-full">
+<div class="w-2 bg-surface-container-highest rounded-full h-16 relative">
+<div class="absolute bottom-0 w-full bg-primary-container rounded-full bar-grow" style="--target-height: 2.5rem;"></div>
+</div>
+<span class="text-[10px] font-label-sm text-on-surface-variant">M</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full">
+<div class="w-2 bg-surface-container-highest rounded-full h-20 relative">
+<div class="absolute bottom-0 w-full bg-primary-container rounded-full bar-grow" style="--target-height: 4rem;"></div>
+</div>
+<span class="text-[10px] font-label-sm text-on-surface-variant">T</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full">
+<div class="w-2 bg-surface-container-highest rounded-full h-24 relative">
+<div class="absolute bottom-0 w-full bg-primary rounded-full bar-grow" style="--target-height: 5.5rem;"></div>
+</div>
+<span class="text-[10px] font-label-sm text-on-surface-variant">W</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full">
+<div class="w-2 bg-surface-container-highest rounded-full h-16 relative">
+<div class="absolute bottom-0 w-full bg-primary-container rounded-full bar-grow" style="--target-height: 3rem;"></div>
+</div>
+<span class="text-[10px] font-label-sm text-on-surface-variant">T</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full">
+<div class="w-2 bg-surface-container-highest rounded-full h-28 relative">
+<div class="absolute bottom-0 w-full bg-primary rounded-full bar-grow" style="--target-height: 6.5rem;"></div>
+</div>
+<span class="text-[10px] font-label-sm text-on-surface-variant">F</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full">
+<div class="w-2 bg-surface-container-highest rounded-full h-12 relative">
+<div class="absolute bottom-0 w-full bg-primary-container rounded-full bar-grow" style="--target-height: 1rem;"></div>
+</div>
+<span class="text-[10px] font-label-sm text-on-surface-variant">S</span>
+</div>
+<div class="flex flex-col items-center gap-2 w-full">
+<div class="w-2 bg-surface-container-highest rounded-full h-10 relative">
+<div class="absolute bottom-0 w-full bg-primary-container rounded-full bar-grow" style="--target-height: 1.5rem;"></div>
+</div>
+<span class="text-[10px] font-label-sm text-on-surface-variant">S</span>
+</div>
+</div>
+</div>
+<!-- Small Stats Row -->
+<div class="grid grid-cols-2 gap-sm">
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-md shadow-sm">
+<span class="material-symbols-outlined text-primary mb-2">timer</span>
+<h4 class="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Focus Hours</h4>
+<p class="text-headline-lg-mobile font-headline-lg-mobile text-on-background">12.5</p>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-md shadow-sm">
+<span class="material-symbols-outlined text-primary mb-2">local_fire_department</span>
+<h4 class="text-label-sm font-label-sm text-on-surface-variant mb-1 uppercase tracking-wider">Current Streak</h4>
+<p class="text-headline-lg-mobile font-headline-lg-mobile text-on-background">4 Days</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Detail Insights -->
+<section class="space-y-sm">
+<h3 class="text-title-md font-title-md text-on-background">Insights</h3>
+<div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-md flex items-start gap-md insight-card">
+<div class="bg-primary-container/20 p-2 rounded-lg shrink-0">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+</div>
+<div>
+<h4 class="text-body-lg font-bold text-primary">Morning Peak</h4>
+<p class="text-body-md text-on-surface-variant mt-1 leading-relaxed">Your productivity peaks between 8:00 AM and 10:30 AM. Consider scheduling your most demanding projects during this scholarly window for optimal cognitive performance.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center pt-2 pb-safe px-margin-mobile bg-surface border-t border-outline-variant/30">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors px-4 py-2 rounded-lg active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">auto_stories</span>
+<span class="text-label-sm font-label-sm mt-1">Focus</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors px-4 py-2 rounded-lg active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">checklist</span>
+<span class="text-label-sm font-label-sm mt-1">Tasks</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors px-4 py-2 rounded-lg active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="text-label-sm font-label-sm mt-1">Projects</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary font-bold hover:bg-surface-container-low transition-colors px-4 py-2 rounded-lg active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="text-label-sm font-label-sm mt-1">Me</span>
+</a>
+</nav>
+<script>
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Progress Ring Animation
+            const circle = document.getElementById('progress-circle');
+            const text = document.getElementById('completion-text');
+            const targetPercent = 78;
+            const radius = circle.r.baseVal.value;
+            const circumference = radius * 2 * Math.PI;
+            
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = circumference;
+            
+            setTimeout(() => {
+                const offset = circumference - (targetPercent / 100) * circumference;
+                circle.style.strokeDashoffset = offset;
+                
+                // Animate text number
+                let startTimestamp = null;
+                const duration = 1500;
+                const step = (timestamp) => {
+                    if (!startTimestamp) startTimestamp = timestamp;
+                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                    text.innerText = Math.floor(progress * targetPercent) + "%";
+                    if (progress < 1) {
+                        window.requestAnimationFrame(step);
+                    }
+                };
+                window.requestAnimationFrame(step);
+            }, 300);
+
+            // 2. Bar Chart Animation
+            const bars = document.querySelectorAll('.bar-grow');
+            setTimeout(() => {
+                bars.forEach((bar, index) => {
+                    setTimeout(() => {
+                        bar.classList.add('animate');
+                    }, index * 100);
+                });
+            }, 500);
+
+            // 3. Insight Cards Animation
+            const insightCards = document.querySelectorAll('.insight-card');
+            setTimeout(() => {
+                insightCards.forEach((card, index) => {
+                    setTimeout(() => {
+                        card.classList.add('animate');
+                    }, index * 200);
+                });
+            }, 800);
+        });
+    </script>
+</body></html>

@@ -1,0 +1,52 @@
+﻿# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.*
+!.env.example
+
+# Tauri and mobile build output
+src-tauri/target
+src-tauri/gen/android/app/build
+
+# NestJS backend output and local data
+server/node_modules
+server/dist
+server/data/*.json
+server/data/*.sqlite*
+!server/data/.gitkeep
+server/data/backups/
+server/.terra-secrets.json
+*.terra-backup
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Packet captures contain live credentials and private content
+proxypin_*/
+
+
+# Local reference screenshot may contain private note content
+note.png
+
+# Local browser layout audit output
+.visual-output/
+
