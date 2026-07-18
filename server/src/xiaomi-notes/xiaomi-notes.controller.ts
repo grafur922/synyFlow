@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req } from '@nestjs/common'
 import { SaveXiaomiNoteDto } from './dto/save-xiaomi-note.dto'
+import { SaveXiaomiCredentialsDto } from './dto/save-xiaomi-credentials.dto'
 import { UpdateXiaomiNoteMetadataDto } from './dto/update-xiaomi-note-metadata.dto'
 import { XiaomiNotesService } from './xiaomi-notes.service'
 import { XiaomiNoteMetadataService } from './xiaomi-note-metadata.service'
+import { isLoopbackAddress } from '../security/api-access'
 
 @Controller('xiaomi-notes')
 export class XiaomiNotesController {
@@ -14,6 +16,13 @@ export class XiaomiNotesController {
   @Get('status')
   getStatus() {
     return this.notesService.getStatus()
+  }
+
+  @Post('credentials')
+  saveCredentials(@Body() input: SaveXiaomiCredentialsDto, @Req() request: any) {
+    const remoteAddress = String(request.socket?.remoteAddress || request.connection?.remoteAddress || '')
+    if (!isLoopbackAddress(remoteAddress)) throw new ForbiddenException('小米云凭证只能通过本机 Terra 页面保存')
+    return this.notesService.saveCredentials(input)
   }
 
   @Get('audit')

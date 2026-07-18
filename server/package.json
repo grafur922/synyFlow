@@ -18,6 +18,7 @@
     "backup": "node scripts/terra-backup.cjs",
     "test:backup-smoke": "node scripts/backup-smoke.cjs",
     "test:secrets-smoke": "node scripts/secrets-smoke.cjs",
+    "test:xiaomi-credentials": "node scripts/xiaomi-credentials-smoke.cjs",
     "test:rag-load": "node scripts/rag-load.cjs",
     "test:xiaomi-boundary": "node scripts/xiaomi-boundary-smoke.cjs",
     "test:resource-sync": "node scripts/resource-sync-smoke.cjs",

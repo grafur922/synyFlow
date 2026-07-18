@@ -1,7 +1,7 @@
-﻿# Xiaomi Cookie DPAPI Setup Design
+# Xiaomi Cookie DPAPI Setup Design
 
 Date: 2026-07-18
-Status: Approved design, pending implementation
+Status: Implemented
 
 ## Objective
 
@@ -78,7 +78,7 @@ The endpoint performs structural validation before persistence. Actual Xiaomi se
 
 ### Secret storage
 
-Extend `server/src/security/secrets.ts` with bounded Windows secret-write support rather than invoking the interactive management script. The writer will:
+Extend `server/src/security/secrets.ts` with bounded Windows secret-write support. It invokes the existing management script through a new non-interactive `set-stdin` action, so DPAPI/ACL logic remains centralized while secret material is supplied only through process stdin. The writer will:
 
 - preserve unrelated secrets in the versioned secret file;
 - use PowerShell `ConvertFrom-SecureString` under the current user context;

@@ -48,6 +48,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const xiaomiNotesApi = {
   getStatus: () => request<XiaomiConnectorStatus>('/xiaomi-notes/status'),
 
+  saveCredentials: (cookie: string) => request<XiaomiConnectorStatus>('/xiaomi-notes/credentials', {
+    method: 'POST',
+    body: JSON.stringify({ cookie })
+  }),
+
   getAudit: () => request<Array<{
     at: number
     operation: string

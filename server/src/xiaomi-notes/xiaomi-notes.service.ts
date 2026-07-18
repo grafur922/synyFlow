@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   GatewayTimeoutException,
   HttpException,
   Injectable,
@@ -16,7 +17,13 @@ import type {
   XiaomiRawNoteEntry
 } from './xiaomi-note.model'
 import { XiaomiNoteHistoryService } from './xiaomi-note-history.service'
-import { getXiaomiCloudCookie } from '../security/secrets'
+import {
+  canWriteWindowsSystemSecrets,
+  getXiaomiCloudCookie,
+  getXiaomiCloudCookieSource,
+  hasEnvironmentXiaomiCloudCookie,
+  setWindowsSystemSecret
+} from '../security/secrets'
 
 const XIAOMI_BASE_URL = 'https://i.mi.com'
 const LIST_CACHE_TTL_MS = 20_000
@@ -67,8 +74,8 @@ type XiaomiAuditEvent = {
 
 @Injectable()
 export class XiaomiNotesService {
-  private readonly cookie = getXiaomiCloudCookie()
-  private readonly serviceToken = this.readCookieValue('serviceToken')
+  private cookie = ''
+  private serviceToken = ''
   private readonly listCache = new Map<string, CacheEntry<XiaomiNotePage>>()
   private readonly detailCache = new Map<string, CacheEntry<XiaomiNote>>()
   private readonly readOnly = process.env.TERRA_XIAOMI_READ_ONLY === 'true'
@@ -81,7 +88,9 @@ export class XiaomiNotesService {
   private lastFailureAt?: number
   private mutationQueue: Promise<unknown> = Promise.resolve()
 
-  constructor(private readonly history: XiaomiNoteHistoryService) {}
+  constructor(private readonly history: XiaomiNoteHistoryService) {
+    this.reloadCredentials()
+  }
 
   getStatus() {
     const configured = this.isConfigured()
@@ -94,15 +103,19 @@ export class XiaomiNotesService {
     const retryAfterSeconds = circuitOpen
       ? Math.max(1, Math.ceil((this.circuitOpenedUntil - Date.now()) / 1000))
       : undefined
-    let message = '小米云凭证已在服务端配置'
-    if (!configured) message = '请在后端环境变量 XIAOMI_CLOUD_COOKIE 中配置完整 Cookie'
-    else if (this.credentialsInvalid) message = '小米云登录凭证已失效，请更新服务端 Cookie 并重启 Terra Server'
+    const credentialSource = getXiaomiCloudCookieSource()
+    const credentialWritable = canWriteWindowsSystemSecrets() && !hasEnvironmentXiaomiCloudCookie()
+    let message = credentialSource === 'environment' ? '小米云凭证已通过服务端环境变量配置' : '小米云凭证已安全保存在 Windows DPAPI'
+    if (!configured) message = credentialWritable ? '请在此页面输入本人 i.mi.com 会话的完整 Cookie' : '请在服务端环境变量 XIAOMI_CLOUD_COOKIE 中配置完整 Cookie'
+    else if (this.credentialsInvalid) message = credentialWritable ? '小米云登录凭证已失效，请在此页面更新完整 Cookie' : '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server'
     else if (circuitOpen) message = `小米云连续请求失败，连接器暂时熔断，请 ${retryAfterSeconds} 秒后重试`
     else if (this.readOnly) message = '小米笔记连接器处于只读安全模式'
     return {
       configured,
       writable: configured && !this.readOnly && !this.credentialsInvalid && !circuitOpen,
       mode,
+      credentialSource,
+      credentialWritable,
       cacheTtlSeconds: LIST_CACHE_TTL_MS / 1000,
       retryAfterSeconds,
       consecutiveFailures: this.consecutiveFailures,
@@ -115,6 +128,20 @@ export class XiaomiNotesService {
       historyStorage: this.history.getStorageStatus(),
       message
     }
+  }
+
+
+  saveCredentials(input: { cookie?: unknown }) {
+    if (!canWriteWindowsSystemSecrets()) throw new ServiceUnavailableException('当前系统不支持 Windows DPAPI 凭证保存')
+    if (hasEnvironmentXiaomiCloudCookie()) throw new ConflictException('服务端环境变量已配置，页面不能覆盖该凭证')
+    const cookie = this.validateCredentialCookie(input?.cookie)
+    try {
+      setWindowsSystemSecret('xiaomiCloudCookie', cookie)
+    } catch {
+      throw new ServiceUnavailableException('无法安全保存小米云凭证，请检查 Windows 用户权限')
+    }
+    this.reloadCredentials(true)
+    return this.getStatus()
   }
 
   getAuditEvents() {
@@ -383,7 +410,7 @@ export class XiaomiNotesService {
         const errorMessage = description || `小米云请求失败（HTTP ${response.status}）`
         if (response.status === 401 || response.status === 403) {
           this.credentialsInvalid = true
-          throw new ServiceUnavailableException('小米云登录凭证已失效，请更新服务端 Cookie')
+          throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
         }
         throw new BadGatewayException(errorMessage)
       }
@@ -522,8 +549,31 @@ export class XiaomiNotesService {
     })
   }
 
-  private readCookieValue(name: string) {
-    const pair = this.cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))
+  private reloadCredentials(resetTransientState = false) {
+    this.cookie = getXiaomiCloudCookie()
+    this.serviceToken = this.readCookieValue('serviceToken', this.cookie)
+    if (!resetTransientState) return
+    this.listCache.clear()
+    this.detailCache.clear()
+    this.credentialsInvalid = false
+    this.consecutiveFailures = 0
+    this.circuitOpenedUntil = 0
+  }
+
+  private validateCredentialCookie(value: unknown) {
+    if (typeof value !== 'string') throw new BadRequestException('Cookie 必须是字符串')
+    const cookie = value.trim()
+    if (!cookie || cookie.length > MAX_COOKIE_LENGTH) throw new BadRequestException('Cookie 为空或超过长度限制')
+    if (/[\0-\x1f\x7f]/.test(cookie)) throw new BadRequestException('Cookie 包含不允许的控制字符')
+    const serviceToken = this.readCookieValue('serviceToken', cookie)
+    if (!serviceToken || serviceToken.length > 4_096 || /[\0-\x20\x7f;]/.test(serviceToken)) {
+      throw new BadRequestException('完整 Cookie 中缺少有效的 serviceToken')
+    }
+    return cookie
+  }
+
+  private readCookieValue(name: string, cookie = this.cookie) {
+    const pair = cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))
     return pair ? pair.slice(name.length + 1) : ''
   }
 
@@ -538,7 +588,7 @@ export class XiaomiNotesService {
 
   private assertConfigured() {
     if (!this.isConfigured()) {
-      throw new ServiceUnavailableException('小米笔记连接器未配置，请在后端设置 XIAOMI_CLOUD_COOKIE')
+      throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米笔记连接器未配置，请检查 XIAOMI_CLOUD_COOKIE' : '小米笔记连接器未配置，请在小米笔记页面安全保存完整 Cookie')
     }
   }
 
@@ -551,7 +601,7 @@ export class XiaomiNotesService {
   private assertUpstreamAvailable(operation: string) {
     if (this.credentialsInvalid) {
       this.recordAudit(operation, 'blocked', 0, new ServiceUnavailableException('credentials invalid'))
-      throw new ServiceUnavailableException('小米云登录凭证已失效，请更新服务端 Cookie 并重启 Terra Server')
+      throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
     }
     if (!this.isCircuitOpen()) return
     const retryAfter = Math.max(1, Math.ceil((this.circuitOpenedUntil - Date.now()) / 1000))

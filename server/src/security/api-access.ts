@@ -86,7 +86,7 @@ export function isLoopbackHost(host: string) {
   return normalized === 'localhost' || normalized === '::1' || normalized === '0:0:0:0:0:0:0:1' || /^127(?:\.\d{1,3}){3}$/.test(normalized)
 }
 
-function isLoopbackAddress(address: string) {
+export function isLoopbackAddress(address: string) {
   const normalized = address.toLocaleLowerCase('en-US').replace(/^::ffff:/, '')
   return isLoopbackHost(normalized)
 }

@@ -20,7 +20,7 @@ Legacy routes `/dashboard` and `/tasks` now redirect to the canonical `/todo` ro
 
 Xiaomi Cloud credentials must only exist in the NestJS process:
 
-- use a server environment variable or the current-user Windows DPAPI file managed by `server/scripts/manage-windows-secrets.ps1`;
+- use a server environment variable or the current-user Windows DPAPI file; when no environment Cookie is configured, the Xiaomi Notes page can securely save the complete Cookie through the local-only backend endpoint;
 - macOS Keychain helper code is retained for later platform validation, but macOS and Android credential storage are deferred and are not current release guarantees;
 - never put the Cookie in `VITE_*`, Vue code, localStorage, screenshots, or Git;
 - captured request/response folders are excluded by `.gitignore` because they contain live session tokens and private note text;
@@ -45,7 +45,8 @@ Node.js 22.12 or newer is required by the encrypted SQLite history backend.
 
 ```powershell
 Copy-Item server/.env.example server/.env
-# Edit server/.env and set XIAOMI_CLOUD_COOKIE to the complete Cookie header
+# Optional: set XIAOMI_CLOUD_COOKIE to the complete Cookie header.
+# On Windows, it can instead be entered securely on the Xiaomi Notes page.
 npm run dev:server
 ```
 
@@ -67,6 +68,7 @@ npm --prefix server run test:rag-external
 npm --prefix server run test:access-smoke
 npm --prefix server run test:backup-smoke
 npm --prefix server run test:secrets-smoke
+npm --prefix server run test:xiaomi-credentials
 npm --prefix server run test:rag-load
 npm --prefix server run test:xiaomi-boundary
 npm --prefix server run test:resource-sync

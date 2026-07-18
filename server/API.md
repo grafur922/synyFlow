@@ -16,9 +16,10 @@ Development base URL: `http://localhost:3001/api`
 
 ## Xiaomi Notes
 
-All Xiaomi cloud calls use `XIAOMI_CLOUD_COOKIE` from the server environment. Credentials are never accepted from browser requests.
+Xiaomi cloud calls use `XIAOMI_CLOUD_COOKIE` when present. On Windows, if that environment variable is absent, the local Xiaomi Notes page can submit the complete Cookie to a loopback-only endpoint and store it using current-user DPAPI. Credential values are never returned by the API, logged, or placed in browser persistence.
 
 - `GET /xiaomi-notes/status`
+- `POST /xiaomi-notes/credentials`
 - `GET /xiaomi-notes/audit`
 - `GET /xiaomi-notes?cursor=&limit=100&refresh=false`
 - `GET /xiaomi-notes/:id`
@@ -34,7 +35,9 @@ Create/update body:
 
 Delete uses Xiaomi's non-purge operation and moves the note to the Xiaomi recycle bin.
 
-`GET /xiaomi-notes/status` reports `mode` (`unconfigured`, `ready`, `readonly`, `credentials_invalid`, or `circuit_open`), `writable`, consecutive failures, retry delay, redacted-audit counters, and history-storage health. `TERRA_XIAOMI_READ_ONLY=true` rejects every Xiaomi mutation before network I/O. A `401/403` marks credentials invalid immediately and suppresses further upstream calls until the server is restarted with an updated Cookie. Other consecutive upstream failures open a bounded cooldown circuit; successful requests reset it.
+`GET /xiaomi-notes/status` reports `mode` (`unconfigured`, `ready`, `readonly`, `credentials_invalid`, or `circuit_open`), `writable`, `credentialSource` (`environment`, `windows-dpapi`, or `none`), `credentialWritable`, consecutive failures, retry delay, redacted-audit counters, and history-storage health. `TERRA_XIAOMI_READ_ONLY=true` rejects every Xiaomi mutation before network I/O. A `401/403` marks credentials invalid immediately and suppresses further upstream calls until the Cookie is replaced from the local page or the server is restarted with an updated environment value. Other consecutive upstream failures open a bounded cooldown circuit; successful requests reset it.
+
+`POST /xiaomi-notes/credentials` accepts `{ "cookie": "complete i.mi.com Cookie" }` only from a loopback client on Windows. It rejects environment-variable overrides, malformed values, control characters, oversized input, and Cookies without a valid `serviceToken`. Success returns only refreshed redacted connector status.
 
 `GET /xiaomi-notes/audit` returns at most 100 in-memory operation records. Entries contain only a normalized operation name, outcome, duration, timestamp, error class, and one-way target hash. They never include a Cookie, request/response body, upstream path, title, content, or raw note id.
 

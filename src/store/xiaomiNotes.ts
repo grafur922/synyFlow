@@ -35,6 +35,7 @@ export const useXiaomiNotesStore = defineStore('xiaomiNotes', {
     loadingHistory: false,
     loadingArchive: false,
     savingMetadata: false,
+    savingCredentials: false,
     deletingHistory: false,
     saving: false,
     restoring: false,
@@ -69,12 +70,31 @@ export const useXiaomiNotesStore = defineStore('xiaomiNotes', {
           configured: false,
           writable: false,
           mode: 'unconfigured',
+          credentialSource: 'none',
+          credentialWritable: false,
           cacheTtlSeconds: 0,
           message: '无法连接 Terra 后端',
           consecutiveFailures: 0,
           audit: { retainedEvents: 0 }
         }
         this.error = messageFrom(error)
+      }
+    },
+
+    async saveCredentials(cookie: string) {
+      if (this.savingCredentials) return false
+      this.savingCredentials = true
+      this.error = ''
+      try {
+        this.status = await xiaomiNotesApi.saveCredentials(cookie)
+        this.initialized = true
+        if (this.status.configured) await this.loadNotes(true, true)
+        return true
+      } catch (error) {
+        this.error = messageFrom(error)
+        return false
+      } finally {
+        this.savingCredentials = false
       }
     },
 

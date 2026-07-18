@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
@@ -28,6 +28,53 @@ let secretFileLoaded = false
 
 export function getXiaomiCloudCookie() {
   return firstEnvironmentValue('XIAOMI_CLOUD_COOKIE') || getSystemSecret('xiaomiCloudCookie')
+}
+
+export function getXiaomiCloudCookieSource(): 'environment' | 'windows-dpapi' | 'none' {
+  if (firstEnvironmentValue('XIAOMI_CLOUD_COOKIE')) return 'environment'
+  if (process.platform === 'win32' && getSystemSecret('xiaomiCloudCookie')) return 'windows-dpapi'
+  return 'none'
+}
+
+export function hasEnvironmentXiaomiCloudCookie() {
+  return Boolean(firstEnvironmentValue('XIAOMI_CLOUD_COOKIE'))
+}
+
+export function canWriteWindowsSystemSecrets() {
+  return process.platform === 'win32'
+}
+
+export function setWindowsSystemSecret(name: SystemSecretName, value: string) {
+  if (process.platform !== 'win32') throw new Error('Windows DPAPI secret storage is unavailable')
+  if (typeof value !== 'string' || !value || value.length > 100_000 || value.includes('\0')) throw new Error('Secret value is invalid')
+
+  const scriptPath = resolve(__dirname, '..', '..', 'scripts', 'manage-windows-secrets.ps1')
+  const result = spawnSync('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', scriptPath,
+    '-Action', 'set-stdin',
+    '-Name', name
+  ], {
+    input: value,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 20_000,
+    maxBuffer: 128 * 1024,
+    windowsHide: true
+  })
+  if (result.error || result.status !== 0) {
+    throw new Error(`Windows DPAPI secret '${name}' could not be stored for the current user`)
+  }
+  invalidateSystemSecretCache(name)
+}
+
+export function invalidateSystemSecretCache(name?: SystemSecretName) {
+  if (name) secretCache.delete(name)
+  else secretCache.clear()
+  secretFileCache = undefined
+  secretFileLoaded = false
 }
 
 export function getHistoryEncryptionSecret() {

@@ -36,7 +36,7 @@ powershell -ExecutionPolicy Bypass -File scripts/manage-windows-secrets.ps1 list
 
 Available names: `xiaomiCloudCookie`, `dataEncryptionKey`, `historyEncryptionKey`, `apiToken`.
 
-The file uses Windows current-user DPAPI. After testing it, remove matching plaintext values from `server/.env` and restart. Copying the DPAPI file to another Windows account does not make it decryptable.
+The file uses Windows current-user DPAPI. The Xiaomi Notes page can also save `xiaomiCloudCookie` through a loopback-only backend endpoint when no environment Cookie is active; the Cookie never enters browser persistence or backups. After testing DPAPI storage, remove matching plaintext values from `server/.env` and restart. Copying the DPAPI file to another Windows account does not make it decryptable.
 
 ## macOS Keychain (deferred)
 

@@ -33,6 +33,9 @@ const historyOpen = ref(false)
 const historyMode = ref<'current' | 'archive'>('current')
 const archiveSelectedNoteId = ref('')
 const historyDetailVisible = ref(false)
+const credentialCookie = ref('')
+const credentialVisible = ref(false)
+const credentialError = ref('')
 let toastTimer = 0
 let resizeFrame = 0
 let stopSecondaryDrag: (() => void) | undefined
@@ -90,6 +93,9 @@ const selectedMetadata = computed(() => {
   } : undefined
 })
 const historyTargetId = computed(() => historyMode.value === 'current' ? selectedId.value : archiveSelectedNoteId.value || undefined)
+const showCredentialSetup = computed(() => Boolean(
+  store.status?.credentialWritable && (!store.configured || store.status.mode === 'credentials_invalid')
+))
 const canSave = computed(() =>
   store.writable &&
   !store.saving &&
@@ -122,6 +128,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  credentialCookie.value = ''
+  credentialError.value = ''
   stopSecondaryDrag?.()
   window.cancelAnimationFrame(resizeFrame)
   window.removeEventListener('beforeunload', handleBeforeUnload)
@@ -279,6 +287,32 @@ async function deleteNote() {
     resetDraft()
     showToast('笔记已移到回收站，删除前版本已留存')
   }
+}
+
+async function saveCredentialCookie() {
+  credentialError.value = ''
+  const cookie = credentialCookie.value.trim()
+  if (!cookie) {
+    credentialError.value = '请输入完整 Cookie'
+    return
+  }
+  if (cookie.length > 24_000) {
+    credentialError.value = 'Cookie 超过长度限制'
+    return
+  }
+  if (!/(?:^|;\s*)serviceToken=[^;\s]+/.test(cookie)) {
+    credentialError.value = '完整 Cookie 中未找到 serviceToken'
+    return
+  }
+  const saved = await store.saveCredentials(cookie)
+  if (!saved) {
+    credentialError.value = store.error || '凭证保存失败'
+    return
+  }
+  credentialCookie.value = ''
+  credentialVisible.value = false
+  credentialError.value = ''
+  showToast('Cookie 已使用 Windows DPAPI 安全保存')
 }
 
 async function refresh() {
@@ -575,6 +609,35 @@ function formatFullDate(timestamp: number) {
 
     <div v-if="!store.status && !store.error" class="flex flex-1 items-center justify-center text-secondary"><span class="material-symbols-outlined mr-2 animate-spin">progress_activity</span>正在检查连接器…</div>
 
+    <div v-else-if="showCredentialSetup" class="flex flex-1 items-center justify-center overflow-y-auto p-5 md:p-8">
+      <section class="w-full max-w-2xl overflow-hidden rounded-2xl border border-outline-variant/30 bg-surface-bright shadow-sm">
+        <div class="border-b border-outline-variant/20 bg-gradient-to-br from-primary-container/70 via-surface-bright to-tertiary-fixed/35 p-6 md:p-8">
+          <div class="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-on-primary shadow-sm"><span class="material-symbols-outlined text-3xl">encrypted</span></div>
+          <p class="text-xs font-black uppercase tracking-[0.18em] text-primary">Windows 安全凭证</p>
+          <h3 class="mt-2 font-headline text-2xl font-bold text-on-surface">{{ store.status?.mode === 'credentials_invalid' ? '更新小米云 Cookie' : '连接你的小米笔记' }}</h3>
+          <p class="mt-3 max-w-xl leading-7 text-secondary">粘贴本人 <strong class="text-on-surface">i.mi.com</strong> 会话的完整 Cookie。Terra 只会将其发送到本机后端，并使用当前 Windows 用户的 DPAPI 加密保存。</p>
+        </div>
+
+        <form class="space-y-5 p-6 md:p-8" @submit.prevent="saveCredentialCookie">
+          <div>
+            <div class="mb-2 flex items-center justify-between gap-3">
+              <label for="xiaomi-cookie" class="text-sm font-bold text-on-surface">完整 Cookie</label>
+              <button type="button" class="flex items-center gap-1 text-xs font-bold text-primary hover:opacity-75" @click="credentialVisible = !credentialVisible"><span class="material-symbols-outlined text-[17px]">{{ credentialVisible ? 'visibility_off' : 'visibility' }}</span>{{ credentialVisible ? '隐藏内容' : '显示内容' }}</button>
+            </div>
+            <textarea id="xiaomi-cookie" v-model="credentialCookie" rows="5" maxlength="24000" autocomplete="off" autocapitalize="off" spellcheck="false" class="cookie-secret w-full resize-y rounded-xl border border-outline-variant/40 bg-surface-container-low px-4 py-3 font-mono text-xs leading-6 text-on-surface outline-none transition placeholder:text-secondary/60 focus:border-primary focus:ring-4 focus:ring-primary/10" :class="{ 'is-visible': credentialVisible }" placeholder="serviceToken=…; userId=…; …" @input="credentialError = ''"></textarea>
+            <div class="mt-2 flex items-start gap-2 text-xs text-secondary"><span class="material-symbols-outlined mt-px text-[16px] text-primary">shield_lock</span><span>必须包含有效的 <code>serviceToken</code>。Cookie 不会保存在浏览器、日志或 Terra 备份中。</span></div>
+          </div>
+
+          <div v-if="credentialError || store.error" class="flex items-start gap-2 rounded-xl bg-error-container/65 p-3 text-sm text-on-error-container"><span class="material-symbols-outlined text-[19px]">error</span><span>{{ credentialError || store.error }}</span></div>
+
+          <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button type="button" class="rounded-xl px-4 py-2.5 text-sm font-bold text-secondary hover:bg-surface-container-high hover:text-primary" :disabled="store.savingCredentials" @click="refresh">重新检测</button>
+            <button type="submit" class="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45" :disabled="store.savingCredentials || !credentialCookie.trim()"><span class="material-symbols-outlined text-[19px]" :class="{ 'animate-spin': store.savingCredentials }">{{ store.savingCredentials ? 'progress_activity' : 'lock' }}</span>{{ store.savingCredentials ? '正在加密保存…' : '安全保存并连接' }}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
     <div v-else-if="!store.configured" class="flex flex-1 items-center justify-center overflow-y-auto p-6">
       <section class="w-full max-w-2xl rounded-xl border border-outline-variant/30 bg-surface-bright p-6 shadow-sm md:p-8">
         <div class="mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-tertiary-fixed text-tertiary"><span class="material-symbols-outlined text-3xl">key_off</span></div>
@@ -735,6 +798,7 @@ function formatFullDate(timestamp: number) {
 </template>
 
 <style scoped>
+.cookie-secret:not(.is-visible) { -webkit-text-security: disc; }
 .toolbar-button { @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-secondary transition hover:bg-surface-container-high hover:text-primary disabled:cursor-not-allowed disabled:opacity-40; }
 .toast-enter-active, .toast-leave-active { transition: all 0.2s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, -8px); }

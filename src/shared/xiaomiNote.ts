@@ -46,6 +46,8 @@ export interface XiaomiConnectorStatus {
   configured: boolean
   writable: boolean
   mode: 'unconfigured' | 'ready' | 'readonly' | 'credentials_invalid' | 'circuit_open'
+  credentialSource: 'environment' | 'windows-dpapi' | 'none'
+  credentialWritable: boolean
   cacheTtlSeconds: number
   message: string
   retryAfterSeconds?: number

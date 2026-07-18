@@ -20,7 +20,8 @@ Node.js 22.12 or newer is required for the built-in `node:sqlite` history backen
 ```powershell
 cd server
 Copy-Item .env.example .env
-# Fill XIAOMI_CLOUD_COOKIE in .env
+# Optionally fill XIAOMI_CLOUD_COOKIE in .env.
+# On Windows, an unconfigured connector also offers secure Cookie entry in the Xiaomi Notes page.
 npm install
 npm run start:dev
 ```
@@ -32,6 +33,7 @@ npm run build
 npm run test:travel-smoke
 npm run test:rag-smoke
 npm run test:rag-external
+npm run test:xiaomi-credentials
 npm run test:xiaomi-boundary
 npm run test:resource-sync
 npm run test:xiaomi-history
@@ -87,7 +89,7 @@ npm run test:xiaomi-history
 
 ## Windows DPAPI secrets
 
-The Windows helper stores secrets as current-user DPAPI ciphertext. Values are read once at server startup and cached in memory. Non-empty environment variables take priority.
+The Windows helper stores secrets as current-user DPAPI ciphertext. Non-empty environment variables take priority. Xiaomi Cookies saved from the local Xiaomi Notes page are reloaded immediately; other externally changed secret values are loaded on the next server start.
 
 ```powershell
 cd server
@@ -96,7 +98,7 @@ powershell -ExecutionPolicy Bypass -File scripts/manage-windows-secrets.ps1 set 
 powershell -ExecutionPolicy Bypass -File scripts/manage-windows-secrets.ps1 list
 ```
 
-Supported names are `xiaomiCloudCookie`, `dataEncryptionKey`, `historyEncryptionKey`, and `apiToken`. After verifying the DPAPI file, remove the corresponding plaintext value from `.env` and restart the server. DPAPI ciphertext is bound to the current Windows user; retain a separate secure recovery copy of encryption keys.
+Supported names are `xiaomiCloudCookie`, `dataEncryptionKey`, `historyEncryptionKey`, and `apiToken`. When `XIAOMI_CLOUD_COOKIE` is absent, the local Xiaomi Notes page may submit a complete Cookie containing `serviceToken`; the backend writes it through the same DPAPI helper without placing it in browser storage or command arguments. After verifying the DPAPI file, remove the corresponding plaintext value from `.env` and restart the server. DPAPI ciphertext is bound to the current Windows user; retain a separate secure recovery copy of encryption keys.
 
 ## macOS Keychain secrets
 
