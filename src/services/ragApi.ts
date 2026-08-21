@@ -1,4 +1,17 @@
-import type { RagDocument, RagDocumentSummary, RagMimeType, RagPrivacy, RagQueryProvider, RagQueryResult, RagStatus } from '../shared/rag'
+import type {
+  RagDocument,
+  RagDocumentSummary,
+  RagEmbeddingCredentialStatus,
+  RagEmbeddingSettings,
+  RagMimeType,
+  RagPrivacy,
+  RagQueryProvider,
+  RagQueryResult,
+  RagSettingsResult,
+  RagStatus,
+  RagVectorIndexStatus,
+  XiaomiRagSyncStatus
+} from '../shared/rag'
 
 const configuredBase = (import.meta.env.VITE_TERRA_API_URL as string | undefined)?.replace(/\/$/, '')
 const apiPrefix = configuredBase ? `${configuredBase}/api` : '/api'
@@ -33,6 +46,25 @@ function parseError(text: string, fallback: string) {
 
 export const ragApi = {
   getStatus: () => request<RagStatus>('/rag/status'),
+  getSettings: () => request<RagSettingsResult>('/rag/settings'),
+  updateSettings(input: Partial<Pick<RagEmbeddingSettings, 'enabled' | 'baseUrl' | 'model' | 'dimensions' | 'batchSize' | 'timeoutMs' | 'autoSyncXiaomi' | 'xiaomiDefaultPrivacy' | 'autoRetry' | 'dailyTokenBudget'>>) {
+    return request<RagSettingsResult>('/rag/settings', { method: 'PATCH', body: JSON.stringify(input) })
+  },
+  saveEmbeddingCredential(apiKey: string) {
+    return request<RagEmbeddingCredentialStatus>('/rag/embedding/credentials', { method: 'POST', body: JSON.stringify({ apiKey }) })
+  },
+  deleteEmbeddingCredential() {
+    return request<RagEmbeddingCredentialStatus>('/rag/embedding/credentials', { method: 'DELETE' })
+  },
+  testEmbedding() {
+    return request<{ ok: true; provider: string; model: string; dimensions: number; latencyMs: number }>('/rag/embedding/test', { method: 'POST' }, 60_000)
+  },
+  getXiaomiSyncStatus: () => request<XiaomiRagSyncStatus>('/rag/sources/xiaomi/status'),
+  syncXiaomiNotes: () => request<XiaomiRagSyncStatus>('/rag/sources/xiaomi/sync', { method: 'POST' }),
+  retryXiaomiSync: () => request<XiaomiRagSyncStatus>('/rag/sources/xiaomi/retry', { method: 'POST' }),
+  cancelXiaomiSync: () => request<XiaomiRagSyncStatus>('/rag/sources/xiaomi/cancel', { method: 'POST' }),
+  getVectorIndexStatus: () => request<RagVectorIndexStatus>('/rag/vector-index/status'),
+  rebuildVectorIndex: () => request<{ ok: true; version: string; documents: number; vectorized: number }>('/rag/vector-index/rebuild', { method: 'POST' }, 10 * 60_000),
   getDocuments: () => request<RagDocumentSummary[]>('/rag/documents'),
   getDocument: (id: string) => request<RagDocument>(`/rag/documents/${encodeURIComponent(id)}`),
   createDocument(input: { title: string; content: string; tags: string[]; privacy: RagPrivacy; mimeType: RagMimeType; source: 'manual' | 'file'; originalFilename?: string }) {

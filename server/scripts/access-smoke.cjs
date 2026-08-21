@@ -1,5 +1,9 @@
 require('reflect-metadata')
 
+const { join } = require('node:path')
+const { tmpdir } = require('node:os')
+process.env.TERRA_WINDOWS_SECRETS_FILE = join(tmpdir(), 'terra-access-smoke-missing-secrets.json')
+
 const modulePath = require.resolve('../dist/security/api-access')
 
 function loadBinding(overrides) {

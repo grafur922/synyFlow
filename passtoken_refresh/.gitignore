@@ -1,0 +1,5 @@
+﻿config.mjs
+myinfo.txt
+*.secret
+*.secrets
+*.token

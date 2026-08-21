@@ -1,5 +1,5 @@
 const { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, scryptSync } = require('node:crypto')
-const { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } = require('node:fs')
+const { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } = require('node:fs')
 const net = require('node:net')
 const { basename, dirname, join, resolve } = require('node:path')
 const { StringDecoder } = require('node:string_decoder')
@@ -7,6 +7,7 @@ const { StringDecoder } = require('node:string_decoder')
 const SERVER_ROOT = resolve(__dirname, '..')
 const MAX_FILE_BYTES = 300 * 1024 * 1024
 const MAX_TOTAL_BYTES = 512 * 1024 * 1024
+const MAX_DIRECTORY_FILES = 100_000
 const MIN_PASSPHRASE_LENGTH = 16
 
 loadLocalEnv()
@@ -22,10 +23,11 @@ const STORE_DEFINITIONS = [
   { key: 'travel', path: configuredPath('TERRA_TRAVEL_FILE', 'data/travel.json') },
   { key: 'travelAttachments', path: configuredPath('TERRA_TRAVEL_ATTACHMENTS_DB', 'data/travel-attachments.sqlite') },
   { key: 'rag', path: configuredPath('TERRA_RAG_FILE', 'data/rag.json') },
+  { key: 'ragVectors', path: configuredPath('TERRA_RAG_VECTOR_PATH', 'data/rag-vectors'), directory: true },
   { key: 'xiaomiHistory', path: XIAOMI_HISTORY_STORE_PATH },
   { key: 'xiaomiMetadata', path: configuredPath('TERRA_XIAOMI_METADATA_FILE', 'data/xiaomi-note-metadata.json') }
 ]
-const LEGACY_OPTIONAL_STORE_KEYS = new Set(['resourceSync', 'travelAttachments'])
+const LEGACY_OPTIONAL_STORE_KEYS = new Set(['resourceSync', 'travelAttachments', 'ragVectors'])
 
 main().catch((error) => {
   console.error(safeError(error))
@@ -68,11 +70,13 @@ function exportBackup(passphrase, reason) {
       continue
     }
     const info = lstatSync(definition.path)
-    if (info.isSymbolicLink() || !info.isFile()) throw new Error(`Store '${definition.key}' is not a regular file`)
-    if (info.size > MAX_FILE_BYTES) throw new Error(`Store '${definition.key}' exceeds the per-file backup limit`)
-    totalBytes += info.size
+    if (info.isSymbolicLink() || (definition.directory ? !info.isDirectory() : !info.isFile())) {
+      throw new Error(`Store '${definition.key}' is not a regular ${definition.directory ? 'directory' : 'file'}`)
+    }
+    const content = definition.directory ? encodeDirectoryStore(definition.path) : readFileSync(definition.path)
+    if (content.length > MAX_FILE_BYTES) throw new Error(`Store '${definition.key}' exceeds the per-store backup limit`)
+    totalBytes += content.length
     if (totalBytes > MAX_TOTAL_BYTES) throw new Error('Terra stores exceed the total backup limit')
-    const content = readFileSync(definition.path)
     files.push({ key: definition.key, missing: false, size: content.length, sha256: hash(content), content: content.toString('base64') })
   }
 
@@ -119,13 +123,17 @@ function restoreBackup(path, passphrase) {
     targetPaths.add(normalizedTarget)
     if (existsSync(definition.path)) {
       const info = lstatSync(definition.path)
-      if (info.isSymbolicLink() || !info.isFile()) throw new Error(`Restore target '${file.key}' is not a regular file`)
+      if (info.isSymbolicLink() || (definition.directory ? !info.isDirectory() : !info.isFile())) {
+        throw new Error(`Restore target '${file.key}' is not a regular ${definition.directory ? 'directory' : 'file'}`)
+      }
     }
     const content = file.missing ? undefined : decodeAndValidate(file)
     return {
       key: file.key,
       target: definition.path,
+      directory: Boolean(definition.directory),
       content,
+      directoryFiles: definition.directory && content ? decodeDirectoryStore(content) : undefined,
       temp: `${definition.path}.terra-restore-${payload.id}.tmp`,
       rollback: `${definition.path}.terra-restore-${payload.id}.bak`,
       hadOriginal: false,
@@ -135,9 +143,19 @@ function restoreBackup(path, passphrase) {
 
   for (const plan of plans) {
     mkdirSync(dirname(plan.target), { recursive: true })
-    rmSync(plan.temp, { force: true })
-    rmSync(plan.rollback, { force: true })
-    if (plan.content) writeFileSync(plan.temp, plan.content, { mode: 0o600, flag: 'wx' })
+    rmSync(plan.temp, { recursive: plan.directory, force: true })
+    rmSync(plan.rollback, { recursive: plan.directory, force: true })
+    if (!plan.content) continue
+    if (!plan.directory) {
+      writeFileSync(plan.temp, plan.content, { mode: 0o600, flag: 'wx' })
+      continue
+    }
+    mkdirSync(plan.temp, { recursive: false, mode: 0o700 })
+    for (const entry of plan.directoryFiles) {
+      const target = safeArchiveTarget(plan.temp, entry.path)
+      mkdirSync(dirname(target), { recursive: true, mode: 0o700 })
+      writeFileSync(target, entry.content, { mode: 0o600, flag: 'wx' })
+    }
   }
 
   try {
@@ -151,12 +169,12 @@ function restoreBackup(path, passphrase) {
         plan.installed = true
       }
     }
-    for (const plan of plans) rmSync(plan.rollback, { force: true })
+    for (const plan of plans) rmSync(plan.rollback, { recursive: plan.directory, force: true })
   } catch (error) {
     for (const plan of [...plans].reverse()) {
-      if (plan.installed) rmSync(plan.target, { force: true })
+      if (plan.installed) rmSync(plan.target, { recursive: plan.directory, force: true })
       if (plan.hadOriginal && existsSync(plan.rollback)) renameSync(plan.rollback, plan.target)
-      rmSync(plan.temp, { force: true })
+      rmSync(plan.temp, { recursive: plan.directory, force: true })
     }
     throw error
   }
@@ -229,6 +247,79 @@ function decodeAndValidate(file) {
   const content = Buffer.from(file.content, 'base64')
   if (content.length !== file.size || hash(content) !== file.sha256) throw new Error(`Backup payload checksum failed for '${file.key}'`)
   return content
+}
+
+function encodeDirectoryStore(root) {
+  const files = []
+  const visit = (directory, prefix = '') => {
+    const entries = readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name, 'en-US'))
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) throw new Error(`Directory store contains a symbolic link: ${entry.name}`)
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name
+      assertSafeArchivePath(relative)
+      if (isForbiddenBackupName(entry.name)) throw new Error(`Directory store contains a forbidden credential-like file: ${entry.name}`)
+      const absolute = join(directory, entry.name)
+      if (entry.isDirectory()) {
+        visit(absolute, relative)
+        continue
+      }
+      if (!entry.isFile()) throw new Error(`Directory store contains an unsupported entry: ${relative}`)
+      if (files.length >= MAX_DIRECTORY_FILES) throw new Error('Directory store contains too many files')
+      const info = lstatSync(absolute)
+      if (info.size > MAX_FILE_BYTES) throw new Error(`Directory store file exceeds the per-file limit: ${relative}`)
+      const content = readFileSync(absolute)
+      files.push({ path: relative, size: content.length, sha256: hash(content), content: content.toString('base64') })
+    }
+  }
+  visit(root)
+  return Buffer.from(JSON.stringify({ format: 'terra-directory-store', version: 1, files }), 'utf8')
+}
+
+function decodeDirectoryStore(content) {
+  let archive
+  try { archive = JSON.parse(content.toString('utf8')) }
+  catch { throw new Error('Backup directory store is not valid JSON') }
+  if (archive?.format !== 'terra-directory-store' || archive.version !== 1 || !Array.isArray(archive.files) || archive.files.length > MAX_DIRECTORY_FILES) {
+    throw new Error('Backup directory store failed validation')
+  }
+  const seen = new Set()
+  let total = 0
+  return archive.files.map((entry) => {
+    if (!entry || typeof entry.path !== 'string' || seen.has(entry.path)) throw new Error('Backup directory store contains an invalid path')
+    assertSafeArchivePath(entry.path)
+    const name = entry.path.split('/').at(-1)
+    if (isForbiddenBackupName(name)) throw new Error('Backup directory store contains a forbidden credential-like file')
+    seen.add(entry.path)
+    if (!Number.isSafeInteger(entry.size) || entry.size < 0 || entry.size > MAX_FILE_BYTES || typeof entry.sha256 !== 'string' || typeof entry.content !== 'string') {
+      throw new Error('Backup directory store contains invalid file metadata')
+    }
+    const decoded = Buffer.from(entry.content, 'base64')
+    if (decoded.length !== entry.size || hash(decoded) !== entry.sha256) throw new Error(`Backup directory checksum failed for '${entry.path}'`)
+    total += decoded.length
+    if (total > MAX_TOTAL_BYTES) throw new Error('Backup directory store exceeds the total size limit')
+    return { path: entry.path, content: decoded }
+  })
+}
+
+function assertSafeArchivePath(value) {
+  if (!value || value.length > 1024 || value.includes('\\') || value.includes('\0') || value.startsWith('/') || /^[A-Za-z]:/.test(value)) {
+    throw new Error('Directory store contains an unsafe path')
+  }
+  const segments = value.split('/')
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) throw new Error('Directory store contains an unsafe path')
+}
+
+function safeArchiveTarget(root, relative) {
+  assertSafeArchivePath(relative)
+  const target = resolve(root, ...relative.split('/'))
+  const normalizedRoot = `${resolve(root)}${require('node:path').sep}`
+  if (!target.startsWith(normalizedRoot)) throw new Error('Directory restore target escaped its root')
+  return target
+}
+
+function isForbiddenBackupName(value) {
+  const name = String(value || '').toLocaleLowerCase('en-US')
+  return name === '.terra-secrets.json' || name === '.env' || name.startsWith('.env.') || name.endsWith('.pem') || name.endsWith('.key') || name.includes('credential') || name.includes('secret')
 }
 
 function ensureSafeDirectory(path) {

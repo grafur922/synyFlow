@@ -2,7 +2,15 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-export type SystemSecretName = 'xiaomiCloudCookie' | 'dataEncryptionKey' | 'historyEncryptionKey' | 'apiToken'
+export type SystemSecretName = 'xiaomiCloudCookie' | 'xiaomiPassportRefreshCredentials' | 'aliyunEmbeddingApiKey' | 'dataEncryptionKey' | 'historyEncryptionKey' | 'apiToken'
+
+
+export type XiaomiPassportRefreshCredentials = {
+  passToken: string
+  userId: string
+  cUserId: string
+  deviceId: string
+}
 
 type WindowsSecretFile = {
   format: 'terra-windows-secrets'
@@ -26,18 +34,82 @@ const secretCache = new Map<SystemSecretName, string>()
 let secretFileCache: WindowsSecretFile | undefined
 let secretFileLoaded = false
 
+
+export type AliyunEmbeddingCredentialSource = 'environment' | 'windows-dpapi' | 'none'
+
+export function getAliyunEmbeddingApiKey() {
+  return getEnvironmentAliyunEmbeddingApiKey() || getSystemSecret('aliyunEmbeddingApiKey')
+}
+
+export function getAliyunEmbeddingApiKeySource(): AliyunEmbeddingCredentialSource {
+  if (getEnvironmentAliyunEmbeddingApiKey()) return 'environment'
+  if (process.platform === 'win32' && getSystemSecret('aliyunEmbeddingApiKey')) return 'windows-dpapi'
+  return 'none'
+}
+
+export function getAliyunEmbeddingCredentialStatus() {
+  const key = getAliyunEmbeddingApiKey()
+  const source = getAliyunEmbeddingApiKeySource()
+  return {
+    configured: Boolean(key),
+    source,
+    writable: canWriteWindowsSystemSecrets() && source !== 'environment',
+    masked: key ? maskSecret(key) : ''
+  }
+}
+
+export function setAliyunEmbeddingApiKey(value: string) {
+  const key = validateAliyunEmbeddingApiKey(value)
+  setWindowsSystemSecret('aliyunEmbeddingApiKey', key)
+  return getAliyunEmbeddingCredentialStatus()
+}
+
+export function removeAliyunEmbeddingApiKey() {
+  removeWindowsSystemSecret('aliyunEmbeddingApiKey')
+  return getAliyunEmbeddingCredentialStatus()
+}
+
+export function validateAliyunEmbeddingApiKey(value: unknown) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (normalized.length < 16 || normalized.length > 512 || /[^A-Za-z0-9._-]/.test(normalized)) {
+    throw new Error('Aliyun API Key is invalid')
+  }
+  return normalized
+}
+
 export function getXiaomiCloudCookie() {
-  return firstEnvironmentValue('XIAOMI_CLOUD_COOKIE') || getSystemSecret('xiaomiCloudCookie')
+  return getValidEnvironmentXiaomiCloudCookie() || getSystemSecret('xiaomiCloudCookie')
 }
 
 export function getXiaomiCloudCookieSource(): 'environment' | 'windows-dpapi' | 'none' {
-  if (firstEnvironmentValue('XIAOMI_CLOUD_COOKIE')) return 'environment'
+  if (getValidEnvironmentXiaomiCloudCookie()) return 'environment'
   if (process.platform === 'win32' && getSystemSecret('xiaomiCloudCookie')) return 'windows-dpapi'
   return 'none'
 }
 
 export function hasEnvironmentXiaomiCloudCookie() {
-  return Boolean(firstEnvironmentValue('XIAOMI_CLOUD_COOKIE'))
+  return Boolean(getValidEnvironmentXiaomiCloudCookie())
+}
+
+export function getXiaomiPassportRefreshCredentials(): XiaomiPassportRefreshCredentials | undefined {
+  return getEnvironmentXiaomiPassportRefreshCredentials()
+    || parseXiaomiPassportRefreshCredentials(getSystemSecret('xiaomiPassportRefreshCredentials'))
+}
+
+export function getXiaomiPassportRefreshCredentialSource(): 'environment' | 'windows-dpapi' | 'none' {
+  if (getEnvironmentXiaomiPassportRefreshCredentials()) return 'environment'
+  if (process.platform === 'win32' && parseXiaomiPassportRefreshCredentials(getSystemSecret('xiaomiPassportRefreshCredentials'))) return 'windows-dpapi'
+  return 'none'
+}
+
+export function hasEnvironmentXiaomiPassportRefreshCredentials() {
+  return Boolean(getEnvironmentXiaomiPassportRefreshCredentials())
+}
+
+export function setXiaomiPassportRefreshCredentials(credentials: XiaomiPassportRefreshCredentials) {
+  const normalized = validateXiaomiPassportRefreshCredentials(credentials)
+  setWindowsSystemSecret('xiaomiPassportRefreshCredentials', JSON.stringify({ version: 1, ...normalized }))
+  return normalized
 }
 
 export function canWriteWindowsSystemSecrets() {
@@ -66,6 +138,29 @@ export function setWindowsSystemSecret(name: SystemSecretName, value: string) {
   })
   if (result.error || result.status !== 0) {
     throw new Error(`Windows DPAPI secret '${name}' could not be stored for the current user`)
+  }
+  invalidateSystemSecretCache(name)
+}
+
+export function removeWindowsSystemSecret(name: SystemSecretName) {
+  if (process.platform !== 'win32') throw new Error('Windows DPAPI secret storage is unavailable')
+  const scriptPath = resolve(__dirname, '..', '..', 'scripts', 'manage-windows-secrets.ps1')
+  const result = spawnSync('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy', 'Bypass',
+    '-File', scriptPath,
+    '-Action', 'remove',
+    '-Name', name
+  ], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 20_000,
+    maxBuffer: 128 * 1024,
+    windowsHide: true
+  })
+  if (result.error || result.status !== 0) {
+    throw new Error(`Windows DPAPI secret '${name}' could not be removed for the current user`)
   }
   invalidateSystemSecretCache(name)
 }
@@ -102,7 +197,9 @@ export function getSecretConfigurationStatus() {
     macosKeychainSupported: process.platform === 'darwin',
     systemProvider: process.platform === 'win32' ? 'windows-dpapi' : process.platform === 'darwin' ? 'macos-keychain' : 'none',
     environment: {
-      xiaomiCookie: Boolean(firstEnvironmentValue('XIAOMI_CLOUD_COOKIE')),
+      xiaomiCookie: Boolean(getValidEnvironmentXiaomiCloudCookie()),
+      xiaomiPassportRefresh: Boolean(getEnvironmentXiaomiPassportRefreshCredentials()),
+      aliyunEmbeddingApiKey: Boolean(getEnvironmentAliyunEmbeddingApiKey()),
       dataEncryptionKey: Boolean(firstEnvironmentValue('TERRA_DATA_ENCRYPTION_KEY')),
       historyEncryptionKey: Boolean(firstEnvironmentValue('TERRA_HISTORY_ENCRYPTION_KEY')),
       apiToken: Boolean(firstEnvironmentValue('TERRA_API_TOKEN'))
@@ -121,6 +218,68 @@ function getSystemSecret(name: SystemSecretName) {
 
 function firstEnvironmentValue(name: string) {
   return (process.env[name] || '').trim()
+}
+
+function getEnvironmentAliyunEmbeddingApiKey() {
+  const value = firstEnvironmentValue('TERRA_RAG_ALIYUN_API_KEY')
+  if (!value) return ''
+  try { return validateAliyunEmbeddingApiKey(value) }
+  catch { return '' }
+}
+
+function maskSecret(value: string) {
+  const suffix = value.slice(-4)
+  const prefix = value.startsWith('sk-') ? 'sk-' : ''
+  return `${prefix}********${suffix}`
+}
+
+function getValidEnvironmentXiaomiCloudCookie() {
+  const cookie = firstEnvironmentValue('XIAOMI_CLOUD_COOKIE')
+  if (!cookie || cookie.length > 24_000 || /[\0-\x1f\x7f]/.test(cookie)) return ''
+  const pair = cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith('serviceToken='))
+  const serviceToken = pair ? pair.slice('serviceToken='.length) : ''
+  if (!serviceToken || serviceToken.length > 4_096 || /[\0-\x20\x7f;]/.test(serviceToken)) return ''
+  return cookie
+}
+
+function getEnvironmentXiaomiPassportRefreshCredentials() {
+  const values = {
+    passToken: firstEnvironmentValue('XIAOMI_PASSPORT_PASS_TOKEN'),
+    userId: firstEnvironmentValue('XIAOMI_PASSPORT_USER_ID'),
+    cUserId: firstEnvironmentValue('XIAOMI_PASSPORT_C_USER_ID'),
+    deviceId: firstEnvironmentValue('XIAOMI_PASSPORT_DEVICE_ID')
+  }
+  if (Object.values(values).some((value) => !value)) return undefined
+  try { return validateXiaomiPassportRefreshCredentials(values) }
+  catch { return undefined }
+}
+
+function parseXiaomiPassportRefreshCredentials(value: string) {
+  if (!value) return undefined
+  try {
+    const parsed = JSON.parse(value) as Partial<XiaomiPassportRefreshCredentials> & { version?: unknown }
+    if (parsed.version !== 1) return undefined
+    return validateXiaomiPassportRefreshCredentials(parsed)
+  } catch {
+    throw new Error('Xiaomi Passport refresh credentials are invalid or unreadable')
+  }
+}
+
+export function validateXiaomiPassportRefreshCredentials(value: Partial<XiaomiPassportRefreshCredentials>) {
+  return {
+    passToken: validatePassportField(value.passToken, 'passToken', 8_192),
+    userId: validatePassportField(value.userId, 'userId', 512),
+    cUserId: validatePassportField(value.cUserId, 'cUserId', 512),
+    deviceId: validatePassportField(value.deviceId, 'deviceId', 512)
+  }
+}
+
+function validatePassportField(value: unknown, name: string, maxLength: number) {
+  const normalized = typeof value === 'string' ? value.trim() : ''
+  if (!normalized || normalized.length > maxLength || /[\0-\x1f\x7f,;]/.test(normalized)) {
+    throw new Error(`Xiaomi Passport ${name} is invalid`)
+  }
+  return normalized
 }
 
 function getWindowsSecret(name: SystemSecretName) {

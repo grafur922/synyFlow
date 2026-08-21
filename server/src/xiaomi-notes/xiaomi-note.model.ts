@@ -72,12 +72,24 @@ export interface XiaomiConnectorStatus {
   configured: boolean
   writable: boolean
   mode: XiaomiConnectorMode
+  credentialSource: 'environment' | 'windows-dpapi' | 'none'
+  credentialWritable: boolean
   cacheTtlSeconds: number
   message: string
   retryAfterSeconds?: number
   consecutiveFailures: number
   audit: XiaomiConnectorAuditStatus
   historyStorage?: XiaomiHistoryStorageStatus
+  passportRefresh: {
+    configured: boolean
+    source: 'environment' | 'windows-dpapi' | 'none'
+    writable: boolean
+    available: boolean
+    refreshing: boolean
+    lastSuccessAt?: number
+    lastFailureAt?: number
+    message: string
+  }
 }
 
 export interface XiaomiNoteInput {

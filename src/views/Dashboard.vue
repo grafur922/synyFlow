@@ -78,7 +78,7 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
     <!-- ==================== DESKTOP HEADER ==================== -->
     <header v-if="!isMobile" class="hidden md:flex justify-between items-center h-16 px-8 bg-background/80 backdrop-blur-md shadow-sm z-10 sticky top-0 flex-shrink-0">
       <div class="flex items-center gap-4">
-        <h2 class="font-headline text-2xl font-bold text-primary dark:text-primary-fixed-dim">Todo 工作台</h2>
+        <h2 class="font-headline text-2xl font-bold text-primary dark:text-primary-fixed-dim">待办工作台</h2>
       </div>
       
       <div class="flex-1 max-w-md mx-8">
@@ -87,7 +87,7 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
           <input 
             v-model="searchQuery"
             class="bg-transparent border-none outline-none text-on-surface w-full placeholder:text-on-surface-variant text-sm font-body focus:ring-0 focus:outline-none" 
-            placeholder="搜索 Todo、分类或备注..." 
+            placeholder="搜索待办、分类或备注..."
             type="text"
           />
         </div>
@@ -110,7 +110,7 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
       <div v-if="!isMobile" class="hidden md:block">
         <!-- Welcome Section -->
         <section class="mb-8">
-          <h2 class="font-headline text-4xl font-bold text-on-surface mb-2">Good morning, Admin</h2>
+          <h2 class="font-headline text-4xl font-bold text-on-surface mb-2">早上好，管理员</h2>
           <p class="font-body text-secondary text-lg">
             今天您有 <span class="text-primary font-bold">{{ pendingTodayTasksCount }}</span> 项待办待处理。开启效率满满的一天吧。
           </p>
@@ -120,12 +120,12 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
         <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           <!-- Completion Rate Card -->
           <div class="bg-surface-bright rounded-xl p-6 shadow-[0_4px_20px_rgba(46,50,48,0.06)] border border-outline-variant/20 flex flex-col items-center justify-center relative overflow-hidden">
-            <div class="absolute top-4 left-4 text-on-surface-variant">
-              <span class="material-symbols-outlined">pie_chart</span>
+            <div class="mb-4 flex w-full items-center gap-2.5 self-stretch">
+              <span class="inline-flex h-8 w-8 flex-shrink-0 aspect-square items-center justify-center rounded-lg bg-primary-container text-primary"><span class="material-symbols-outlined text-[20px]">pie_chart</span></span>
+              <h3 class="font-body text-secondary text-sm font-semibold leading-8 tracking-wide">本周完成率</h3>
             </div>
-            <h3 class="font-body text-secondary text-sm font-semibold mb-4 tracking-wide uppercase">Weekly Completion</h3>
             <!-- Circular Progress (CSS based) -->
-            <div class="relative w-32 h-32 flex items-center justify-center mb-2">
+            <div class="relative h-32 w-32 aspect-square flex items-center justify-center mb-2">
               <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <!-- Background circle -->
                 <circle class="text-surface-container-high" cx="50" cy="50" fill="transparent" r="40" stroke="currentColor" stroke-width="8"></circle>
@@ -147,7 +147,7 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
                 <span class="font-headline text-3xl font-bold text-on-surface">{{ taskStore.completionRate }}%</span>
               </div>
             </div>
-            <p class="text-xs text-secondary mt-2">+12% from last week</p>
+            <p class="text-xs text-secondary mt-2">较上周提升 12%</p>
           </div>
 
           <!-- Focus Hours Card -->
@@ -155,14 +155,14 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
             <div class="flex justify-between items-start mb-4">
               <div>
                 <span class="material-symbols-outlined text-tertiary mb-2">hourglass_top</span>
-                <h3 class="font-body text-secondary text-sm font-semibold tracking-wide uppercase">Focus Hours</h3>
+                <h3 class="font-body text-secondary text-sm font-semibold tracking-wide">专注时长</h3>
               </div>
               <span class="bg-tertiary-container/30 text-on-tertiary-container text-xs px-2 py-1 rounded-full font-bold">This Week</span>
             </div>
             <div>
               <div class="flex items-baseline gap-2 mb-4">
                 <span class="font-headline text-4xl font-bold text-on-surface">{{ taskStore.focusHours }}</span>
-                <span class="text-secondary font-body">hrs</span>
+                <span class="text-secondary font-body">小时</span>
               </div>
               <!-- Mini bar chart -->
               <div class="flex items-end gap-2 h-16 w-full mt-4">
@@ -175,7 +175,7 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
                 ></div>
               </div>
               <div class="flex justify-between text-[10px] text-secondary mt-1 px-1">
-                <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span>
+                <span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span>
               </div>
             </div>
           </div>
@@ -185,11 +185,11 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
             <div class="absolute -right-10 -top-10 w-40 h-40 bg-on-primary-fixed-variant/20 rounded-full blur-2xl group-hover:bg-on-primary-fixed-variant/30 transition-colors duration-500"></div>
             <div class="flex items-center gap-2 mb-6 z-10">
               <span class="material-symbols-outlined">warning</span>
-              <h3 class="font-body text-on-primary/80 text-sm font-semibold tracking-wide uppercase">Requires Attention</h3>
+              <h3 class="font-body text-on-primary/80 text-sm font-semibold tracking-wide">需要关注</h3>
             </div>
             <div class="mb-4 z-10">
               <span class="font-headline text-5xl font-bold">{{ taskStore.urgentTasks.length }}</span>
-              <p class="text-on-primary/80 mt-1">Urgent tasks pending</p>
+              <p class="text-on-primary/80 mt-1">项紧急任务待处理</p>
             </div>
             <div class="mt-auto z-10 space-y-3">
               <div 
@@ -210,12 +210,12 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
         <!-- Upcoming Tasks Section -->
         <section>
           <div class="flex justify-between items-center mb-6">
-            <h2 class="font-headline text-2xl font-bold text-on-surface">Upcoming Tasks</h2>
+            <h2 class="font-headline text-2xl font-bold text-on-surface">即将到期</h2>
             <button 
               @click="router.push('/calendar')"
               class="text-primary font-semibold text-sm hover:underline flex items-center gap-1"
             >
-              View Schedule <span class="material-symbols-outlined text-sm">chevron_right</span>
+              查看日程 <span class="material-symbols-outlined text-sm">chevron_right</span>
             </button>
           </div>
           <div class="space-y-4">
@@ -252,7 +252,7 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
                     v-if="task.priority === 'High'"
                     class="bg-error-container text-on-error-container text-[9px] px-1.5 py-0.5 rounded font-extrabold uppercase tracking-wide"
                   >
-                    Urgent
+                    紧急
                   </span>
                 </div>
                 <h4 
@@ -261,7 +261,7 @@ const barHeights = [40, 60, 90, 100, 30] // 对应 M, T, W, T, F 专注时间百
                 >
                   {{ task.title }}
                 </h4>
-                <p class="text-sm text-secondary truncate">{{ task.notes || 'No description provided.' }}</p>
+                <p class="text-sm text-secondary truncate">{{ task.notes || '暂无备注' }}</p>
               </div>
               <div class="flex items-center justify-between md:justify-end gap-6 mt-4 md:mt-0">
                 <div class="flex -space-x-2">

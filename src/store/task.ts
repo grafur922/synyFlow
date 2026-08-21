@@ -7,6 +7,7 @@ export type { Task } from '../shared/task'
 const storageKey = 'terra_tasks'
 
 let taskEventSource: EventSource | undefined
+let backendReconnectTimer: number | undefined
 
 type TaskIndex = {
   byDate: Record<string, Task[]>
@@ -62,46 +63,46 @@ function createMockTasks(): Task[] {
     },
     {
       id: 'mock-4',
-      title: 'Finalize Terra Design System Tokens',
+      title: '完成 Terra 设计系统变量',
       category: '工作',
       date: today,
       timeStart: '10:00',
       timeEnd: '11:30',
       priority: 'High',
-      notes: 'Review color palette mapping for dark mode and structural JSON with development team.',
+      notes: '与开发团队确认深色模式配色映射和结构化变量配置。',
       completed: false
     },
     {
       id: 'mock-5',
-      title: 'Morning Garden Walk',
+      title: '晨间花园散步',
       category: '个人',
       date: today,
       timeStart: '08:00',
       timeEnd: '09:00',
       priority: 'Low',
-      notes: 'Check moisture levels in the raised beds and trim the dead leaves from rose plants.',
+      notes: '检查花床土壤湿度，并修剪玫瑰植株上的枯叶。',
       completed: false
     },
     {
       id: 'mock-6',
-      title: 'Review Seed Catalog',
+      title: '查看种子目录',
       category: '学习',
       date: today,
       timeStart: '10:30',
       timeEnd: '',
       priority: 'Medium',
-      notes: 'Finalize orders for the upcoming winter planting season and select organic herb seeds.',
+      notes: '确认冬季种植采购清单，并挑选适合的有机香草种子。',
       completed: true
     },
     {
       id: 'mock-7',
-      title: 'Q4 Board Deck Review',
+      title: '审阅第四季度董事会材料',
       category: '工作',
       date: today,
       timeStart: '14:00',
       timeEnd: '15:30',
       priority: 'High',
-      notes: 'Align on business growth projections and marketing strategies for the next quarter.',
+      notes: '核对下一季度业务增长预期与市场推广策略。',
       completed: false
     }
   ]
@@ -206,10 +207,11 @@ export const useTaskStore = defineStore('task', {
       }
 
       this.startBackendEvents()
+      this.startBackendReconnectPolling()
       void this.syncFromBackend()
     },
 
-    async syncFromBackend() {
+    async syncFromBackend(silent = false) {
       if (!taskApi.isConfigured) return
 
       this.loading = true
@@ -222,18 +224,27 @@ export const useTaskStore = defineStore('task', {
         this.tasks = nextTasks
         this.backendOnline = true
         this.saveToStorage()
+        this.startBackendEvents()
       } catch (error) {
         this.backendOnline = false
-        console.warn('Task backend is unavailable; using local storage', error)
+        if (!silent) console.warn('Task backend is unavailable; using local storage', error)
       } finally {
         this.loading = false
       }
     },
 
+    startBackendReconnectPolling() {
+      if (!taskApi.isConfigured || backendReconnectTimer) return
+      backendReconnectTimer = window.setInterval(() => {
+        if (!this.backendOnline && !this.loading) void this.syncFromBackend(true)
+      }, 5_000)
+    },
+
     startBackendEvents() {
       if (!taskApi.isConfigured || taskEventSource) return
 
-      taskEventSource = subscribeToTaskEvents(
+      let source: EventSource | undefined
+      source = subscribeToTaskEvents(
         (event) => {
           this.backendOnline = true
 
@@ -261,8 +272,11 @@ export const useTaskStore = defineStore('task', {
         },
         () => {
           this.backendOnline = false
+          source?.close()
+          if (taskEventSource === source) taskEventSource = undefined
         }
       )
+      taskEventSource = source
     },
 
     injectMockData() {

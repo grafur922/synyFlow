@@ -17,6 +17,7 @@ import type {
   XiaomiRawNoteEntry
 } from './xiaomi-note.model'
 import { XiaomiNoteHistoryService } from './xiaomi-note-history.service'
+import { XiaomiPassportService, type XiaomiRefreshCredentialUpdate } from './xiaomi-passport.service'
 import {
   canWriteWindowsSystemSecrets,
   getXiaomiCloudCookie,
@@ -88,7 +89,10 @@ export class XiaomiNotesService {
   private lastFailureAt?: number
   private mutationQueue: Promise<unknown> = Promise.resolve()
 
-  constructor(private readonly history: XiaomiNoteHistoryService) {
+  constructor(
+    private readonly history: XiaomiNoteHistoryService,
+    private readonly passport: XiaomiPassportService = new XiaomiPassportService()
+  ) {
     this.reloadCredentials()
   }
 
@@ -126,10 +130,22 @@ export class XiaomiNotesService {
         lastFailureAt: this.lastFailureAt
       },
       historyStorage: this.history.getStorageStatus(),
+      passportRefresh: this.passport.getStatus(),
       message
     }
   }
 
+
+  updateRefreshCredentials(input: XiaomiRefreshCredentialUpdate) {
+    this.passport.updateCredentials(input)
+    return this.getStatus()
+  }
+
+  async refreshNow() {
+    const refreshedCookie = await this.passport.refreshCookie(this.cookie)
+    this.applyRefreshedCookie(refreshedCookie)
+    return this.getStatus()
+  }
 
   saveCredentials(input: { cookie?: unknown }) {
     if (!canWriteWindowsSystemSecrets()) throw new ServiceUnavailableException('当前系统不支持 Windows DPAPI 凭证保存')
@@ -369,9 +385,10 @@ export class XiaomiNotesService {
     if (result.conflict) throw new BadGatewayException('保存发生版本冲突，请刷新后重试')
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+  private async request<T>(path: string, init?: RequestInit, retriedAfterRefresh = false): Promise<T> {
     this.assertUpstreamAvailable(path)
     const startedAt = Date.now()
+    let skipFailureAccounting = false
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
@@ -398,6 +415,24 @@ export class XiaomiNotesService {
       if (Buffer.byteLength(text, 'utf8') > MAX_UPSTREAM_RESPONSE_BYTES) {
         throw new BadGatewayException('Xiaomi response exceeded the allowed size')
       }
+      if (response.status === 401 || response.status === 403) {
+        skipFailureAccounting = true
+        if (!retriedAfterRefresh && this.passport.canRefresh()) {
+          skipFailureAccounting = true
+          clearTimeout(timer)
+          try {
+            const refreshedCookie = await this.passport.refreshCookie(this.cookie)
+            this.applyRefreshedCookie(refreshedCookie)
+            return this.request<T>(path, init, true)
+          } catch {
+            this.credentialsInvalid = true
+            throw new ServiceUnavailableException('小米云自动续期失败，请在设置中更新 Passport 凭证')
+          }
+        }
+        this.credentialsInvalid = true
+        throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
+      }
+
       let envelope: XiaomiEnvelope<T>
       try {
         envelope = JSON.parse(text) as XiaomiEnvelope<T>
@@ -408,10 +443,6 @@ export class XiaomiNotesService {
       if (!response.ok || envelope.result !== 'ok' || envelope.code !== 0 || !envelope.data) {
         const description = this.safeUpstreamMessage(envelope.description)
         const errorMessage = description || `小米云请求失败（HTTP ${response.status}）`
-        if (response.status === 401 || response.status === 403) {
-          this.credentialsInvalid = true
-          throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
-        }
         throw new BadGatewayException(errorMessage)
       }
 
@@ -419,7 +450,7 @@ export class XiaomiNotesService {
       return envelope.data
     } catch (error) {
       if (error instanceof HttpException) {
-        this.recordFailure(path, startedAt, error)
+        if (!skipFailureAccounting) this.recordFailure(path, startedAt, error)
         throw error
       }
       if ((error as { name?: string }).name === 'AbortError') {
@@ -547,6 +578,16 @@ export class XiaomiNotesService {
       ...parsed,
       title
     })
+  }
+
+  private applyRefreshedCookie(cookie: string) {
+    this.cookie = cookie
+    this.serviceToken = this.readCookieValue('serviceToken', cookie)
+    this.listCache.clear()
+    this.detailCache.clear()
+    this.credentialsInvalid = false
+    this.consecutiveFailures = 0
+    this.circuitOpenedUntil = 0
   }
 
   private reloadCredentials(resetTransientState = false) {

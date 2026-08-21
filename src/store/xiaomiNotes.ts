@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { xiaomiNotesApi } from '../services/xiaomiNotesApi'
+import { ragApi } from '../services/ragApi'
 import type {
   SaveXiaomiNoteInput,
   XiaomiConnectorStatus,
@@ -75,7 +76,15 @@ export const useXiaomiNotesStore = defineStore('xiaomiNotes', {
           cacheTtlSeconds: 0,
           message: '无法连接 Terra 后端',
           consecutiveFailures: 0,
-          audit: { retainedEvents: 0 }
+          audit: { retainedEvents: 0 },
+          passportRefresh: {
+            configured: false,
+            source: 'none',
+            writable: false,
+            available: false,
+            refreshing: false,
+            message: '无法连接 Terra 后端'
+          }
         }
         this.error = messageFrom(error)
       }
@@ -118,6 +127,7 @@ export const useXiaomiNotesStore = defineStore('xiaomiNotes', {
         this.folders = Array.from(new Map(mergedFolders.map((folder) => [folder.id, folder])).values())
         this.nextCursor = page.nextCursor
         this.lastPage = page.lastPage
+        if (reset && forceRefresh) void ragApi.getSettings().then((result) => result.settings.autoSyncXiaomi ? ragApi.syncXiaomiNotes() : undefined).catch(() => undefined)
       } catch (error) {
         if (requestId === this.listRequestId) this.error = messageFrom(error)
       } finally {

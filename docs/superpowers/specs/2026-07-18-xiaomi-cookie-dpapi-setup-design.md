@@ -12,7 +12,7 @@ When the Xiaomi Notes connector cannot obtain `XIAOMI_CLOUD_COOKIE` from the ser
 - The browser submits the Cookie only to the local Terra Server API.
 - The Cookie must never be stored in localStorage, sessionStorage, persisted Pinia state, browser backups, logs, audit events, screenshots, URLs, or API responses.
 - The backend accepts credentials only when Windows DPAPI is available.
-- `XIAOMI_CLOUD_COOKIE` remains the highest-priority source. A UI submission cannot override an environment-provided Cookie.
+- A structurally valid `XIAOMI_CLOUD_COOKIE` containing `serviceToken` remains the highest-priority source. Empty, placeholder, or malformed environment values do not suppress UI setup.
 - The DPAPI payload is encrypted for the current Windows user, written atomically, and protected by an ACL granting access only to that user.
 - Errors expose validation categories but never echo submitted values, upstream response bodies, file paths, or decrypted credentials.
 
@@ -63,7 +63,7 @@ Request body:
 Successful response contains only refreshed connector status. The endpoint:
 
 1. rejects non-Windows systems or unavailable DPAPI storage;
-2. rejects the request if `XIAOMI_CLOUD_COOKIE` is non-empty;
+2. rejects the request if `XIAOMI_CLOUD_COOKIE` contains a structurally valid `serviceToken`;
 3. validates type and bounded length;
 4. rejects CR, LF, NUL, and other disallowed control characters;
 5. parses semicolon-separated Cookie pairs and requires a non-empty `serviceToken`;

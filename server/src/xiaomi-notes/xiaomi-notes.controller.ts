@@ -2,15 +2,18 @@ import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, 
 import { SaveXiaomiNoteDto } from './dto/save-xiaomi-note.dto'
 import { SaveXiaomiCredentialsDto } from './dto/save-xiaomi-credentials.dto'
 import { UpdateXiaomiNoteMetadataDto } from './dto/update-xiaomi-note-metadata.dto'
+import { UpdateXiaomiRefreshCredentialsDto } from './dto/update-xiaomi-refresh-credentials.dto'
 import { XiaomiNotesService } from './xiaomi-notes.service'
 import { XiaomiNoteMetadataService } from './xiaomi-note-metadata.service'
 import { isLoopbackAddress } from '../security/api-access'
+import { XiaomiNotesRagSyncService } from '../rag/xiaomi-notes-rag-sync.service'
 
 @Controller('xiaomi-notes')
 export class XiaomiNotesController {
   constructor(
     private readonly notesService: XiaomiNotesService,
-    private readonly metadataService: XiaomiNoteMetadataService
+    private readonly metadataService: XiaomiNoteMetadataService,
+    private readonly ragSync: XiaomiNotesRagSyncService
   ) {}
 
   @Get('status')
@@ -20,9 +23,20 @@ export class XiaomiNotesController {
 
   @Post('credentials')
   saveCredentials(@Body() input: SaveXiaomiCredentialsDto, @Req() request: any) {
-    const remoteAddress = String(request.socket?.remoteAddress || request.connection?.remoteAddress || '')
-    if (!isLoopbackAddress(remoteAddress)) throw new ForbiddenException('小米云凭证只能通过本机 Terra 页面保存')
+    this.assertLoopback(request)
     return this.notesService.saveCredentials(input)
+  }
+
+  @Patch('refresh-credentials')
+  updateRefreshCredentials(@Body() input: UpdateXiaomiRefreshCredentialsDto, @Req() request: any) {
+    this.assertLoopback(request)
+    return this.notesService.updateRefreshCredentials(input)
+  }
+
+  @Post('refresh-now')
+  refreshNow(@Req() request: any) {
+    this.assertLoopback(request)
+    return this.notesService.refreshNow()
   }
 
   @Get('audit')
@@ -94,8 +108,10 @@ export class XiaomiNotesController {
   }
 
   @Post(':id/history/:historyId/restore')
-  restoreHistory(@Param('id') id: string, @Param('historyId') historyId: string) {
-    return this.notesService.restoreHistory(id, historyId)
+  async restoreHistory(@Param('id') id: string, @Param('historyId') historyId: string) {
+    const restored = await this.notesService.restoreHistory(id, historyId)
+    this.ragSync.enqueueItem(restored.id, 'upsert')
+    return restored
   }
 
   @Delete(':id/history/:historyId')
@@ -114,17 +130,29 @@ export class XiaomiNotesController {
   }
 
   @Post()
-  create(@Body() note: SaveXiaomiNoteDto) {
-    return this.notesService.create(note)
+  async create(@Body() note: SaveXiaomiNoteDto) {
+    const created = await this.notesService.create(note)
+    this.ragSync.enqueueItem(created.id, 'upsert')
+    return created
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() note: SaveXiaomiNoteDto) {
-    return this.notesService.update(id, note)
+  async update(@Param('id') id: string, @Body() note: SaveXiaomiNoteDto) {
+    const updated = await this.notesService.update(id, note)
+    this.ragSync.enqueueItem(updated.id, 'upsert')
+    return updated
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.notesService.remove(id)
+  async remove(@Param('id') id: string) {
+    const removed = await this.notesService.remove(id)
+    this.ragSync.enqueueItem(id, 'delete')
+    return removed
   }
+
+  private assertLoopback(request: any) {
+    const remoteAddress = String(request.socket?.remoteAddress || request.connection?.remoteAddress || '')
+    if (!isLoopbackAddress(remoteAddress)) throw new ForbiddenException('小米云凭证只能通过本机 Terra 页面保存')
+  }
+
 }

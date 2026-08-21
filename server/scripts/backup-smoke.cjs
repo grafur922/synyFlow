@@ -16,6 +16,7 @@ const paths = {
   TERRA_TRAVEL_FILE: join(root, 'travel.json'),
   TERRA_TRAVEL_ATTACHMENTS_DB: join(root, 'travel-attachments.sqlite'),
   TERRA_RAG_FILE: join(root, 'rag.json'),
+  TERRA_RAG_VECTOR_PATH: join(root, 'rag-vectors'),
   TERRA_XIAOMI_HISTORY_DB: join(root, 'history.sqlite'),
   TERRA_XIAOMI_HISTORY_FILE: join(root, 'history.json'),
   TERRA_XIAOMI_METADATA_FILE: join(root, 'metadata.json')
@@ -24,12 +25,17 @@ const originalTasks = '{"private":"task fixture"}\n'
 const originalRag = '{"private":"rag fixture"}\n'
 const originalResourceSync = '{"private":"sync cursor fixture"}\n'
 const originalTravelAttachments = Buffer.concat([Buffer.from('SQLite format 3\0', 'utf8'), Buffer.from('private encrypted attachment fixture', 'utf8')])
+const originalVectorManifest = '{"format":"terra-rag-vector-manifest","activeVersion":"fixture"}\n'
+const originalVectorData = Buffer.from('vector fixture without note plaintext', 'utf8')
 const originalHistory = Buffer.concat([Buffer.from('SQLite format 3\0', 'utf8'), Buffer.from('private sqlite history fixture', 'utf8')])
 const backupPassphrase = 'correct-backup-passphrase-32'
 
 try {
   writeFileSync(paths.TERRA_DATA_FILE, originalTasks)
   writeFileSync(paths.TERRA_RAG_FILE, originalRag)
+  mkdirSync(join(paths.TERRA_RAG_VECTOR_PATH, 'table', 'data'), { recursive: true })
+  writeFileSync(join(paths.TERRA_RAG_VECTOR_PATH, 'vector-manifest.json'), originalVectorManifest)
+  writeFileSync(join(paths.TERRA_RAG_VECTOR_PATH, 'table', 'data', 'vectors.bin'), originalVectorData)
   writeFileSync(paths.TERRA_RESOURCE_SYNC_FILE, originalResourceSync)
   writeFileSync(paths.TERRA_TRAVEL_ATTACHMENTS_DB, originalTravelAttachments)
   writeFileSync(paths.TERRA_XIAOMI_HISTORY_FILE, originalHistory)
@@ -45,10 +51,13 @@ try {
   const rawBackup = readFileSync(exported.path, 'utf8')
   if (rawBackup.includes('task fixture') || rawBackup.includes('rag fixture') || rawBackup.includes('sync cursor fixture') || rawBackup.includes('encrypted attachment fixture') || rawBackup.includes('sqlite history fixture')) throw new Error('Backup leaked plaintext')
   const inspected = run(['inspect', exported.path], commonEnv)
-  if (inspected.id !== exported.id || inspected.files.length !== 10) throw new Error('Backup inspection failed')
+  if (inspected.id !== exported.id || inspected.files.length !== 11) throw new Error('Backup inspection failed')
 
   writeFileSync(paths.TERRA_DATA_FILE, '{"changed":true}\n')
   writeFileSync(paths.TERRA_RAG_FILE, '{"changed":true}\n')
+  rmSync(paths.TERRA_RAG_VECTOR_PATH, { recursive: true, force: true })
+  mkdirSync(paths.TERRA_RAG_VECTOR_PATH, { recursive: true })
+  writeFileSync(join(paths.TERRA_RAG_VECTOR_PATH, 'changed.bin'), 'changed vector index')
   writeFileSync(paths.TERRA_RESOURCE_SYNC_FILE, '{"changed":true}\n')
   writeFileSync(paths.TERRA_TRAVEL_ATTACHMENTS_DB, 'changed attachment database')
   writeFileSync(paths.TERRA_XIAOMI_HISTORY_FILE, '{"changed":true}\n')
@@ -58,7 +67,7 @@ try {
   if (wrong.status === 0 || readFileSync(paths.TERRA_DATA_FILE, 'utf8') !== '{"changed":true}\n') throw new Error('Wrong passphrase modified source data')
 
   const restored = run(['restore', exported.path, '--confirm', inspected.id], commonEnv)
-  if (readFileSync(paths.TERRA_DATA_FILE, 'utf8') !== originalTasks || readFileSync(paths.TERRA_RAG_FILE, 'utf8') !== originalRag || readFileSync(paths.TERRA_RESOURCE_SYNC_FILE, 'utf8') !== originalResourceSync || !readFileSync(paths.TERRA_TRAVEL_ATTACHMENTS_DB).equals(originalTravelAttachments) || !readFileSync(paths.TERRA_XIAOMI_HISTORY_FILE).equals(originalHistory)) throw new Error('Restore did not reproduce original files')
+  if (readFileSync(paths.TERRA_DATA_FILE, 'utf8') !== originalTasks || readFileSync(paths.TERRA_RAG_FILE, 'utf8') !== originalRag || readFileSync(paths.TERRA_RESOURCE_SYNC_FILE, 'utf8') !== originalResourceSync || !readFileSync(paths.TERRA_TRAVEL_ATTACHMENTS_DB).equals(originalTravelAttachments) || !readFileSync(paths.TERRA_XIAOMI_HISTORY_FILE).equals(originalHistory) || readFileSync(join(paths.TERRA_RAG_VECTOR_PATH, 'vector-manifest.json'), 'utf8') !== originalVectorManifest || !readFileSync(join(paths.TERRA_RAG_VECTOR_PATH, 'table', 'data', 'vectors.bin')).equals(originalVectorData) || existsSync(join(paths.TERRA_RAG_VECTOR_PATH, 'changed.bin'))) throw new Error('Restore did not reproduce original files and vector directory')
   if (existsSync(paths.TERRA_RSS_FILE)) throw new Error('Restore did not remove a store missing from the backup')
   if (!existsSync(restored.preRestoreBackup)) throw new Error('Pre-restore rollback backup was not created')
 
@@ -99,7 +108,7 @@ function createLegacyBackup(source, target, passphrase) {
   const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64'))
   decipher.setAuthTag(Buffer.from(envelope.authTag, 'base64'))
   const payload = JSON.parse(Buffer.concat([decipher.update(Buffer.from(envelope.ciphertext, 'base64')), decipher.final()]).toString('utf8'))
-  payload.files = payload.files.filter((file) => file.key !== 'resourceSync' && file.key !== 'travelAttachments')
+  payload.files = payload.files.filter((file) => file.key !== 'resourceSync' && file.key !== 'travelAttachments' && file.key !== 'ragVectors')
 
   const salt = randomBytes(16)
   const iv = randomBytes(12)

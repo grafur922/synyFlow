@@ -1,7 +1,7 @@
-param(
+﻿param(
   [ValidateSet('set', 'set-stdin', 'remove', 'list')]
   [string]$Action = 'list',
-  [ValidateSet('xiaomiCloudCookie', 'dataEncryptionKey', 'historyEncryptionKey', 'apiToken')]
+  [ValidateSet('xiaomiCloudCookie', 'xiaomiPassportRefreshCredentials', 'aliyunEmbeddingApiKey', 'dataEncryptionKey', 'historyEncryptionKey', 'apiToken')]
   [string]$Name = 'xiaomiCloudCookie'
 )
 

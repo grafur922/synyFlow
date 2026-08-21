@@ -16,10 +16,12 @@ Development base URL: `http://localhost:3001/api`
 
 ## Xiaomi Notes
 
-Xiaomi cloud calls use `XIAOMI_CLOUD_COOKIE` when present. On Windows, if that environment variable is absent, the local Xiaomi Notes page can submit the complete Cookie to a loopback-only endpoint and store it using current-user DPAPI. Credential values are never returned by the API, logged, or placed in browser persistence.
+Xiaomi cloud calls use `XIAOMI_CLOUD_COOKIE` when it contains a structurally valid `serviceToken`; empty, placeholder, or malformed environment values are ignored. On Windows, if that environment variable is absent, the local Xiaomi Notes page can submit the complete Cookie to a loopback-only endpoint and store it using current-user DPAPI. Credential values are never returned by the API, logged, or placed in browser persistence.
 
 - `GET /xiaomi-notes/status`
 - `POST /xiaomi-notes/credentials`
+- `PATCH /xiaomi-notes/refresh-credentials`
+- `POST /xiaomi-notes/refresh-now`
 - `GET /xiaomi-notes/audit`
 - `GET /xiaomi-notes?cursor=&limit=100&refresh=false`
 - `GET /xiaomi-notes/:id`
@@ -35,9 +37,11 @@ Create/update body:
 
 Delete uses Xiaomi's non-purge operation and moves the note to the Xiaomi recycle bin.
 
-`GET /xiaomi-notes/status` reports `mode` (`unconfigured`, `ready`, `readonly`, `credentials_invalid`, or `circuit_open`), `writable`, `credentialSource` (`environment`, `windows-dpapi`, or `none`), `credentialWritable`, consecutive failures, retry delay, redacted-audit counters, and history-storage health. `TERRA_XIAOMI_READ_ONLY=true` rejects every Xiaomi mutation before network I/O. A `401/403` marks credentials invalid immediately and suppresses further upstream calls until the Cookie is replaced from the local page or the server is restarted with an updated environment value. Other consecutive upstream failures open a bounded cooldown circuit; successful requests reset it.
+`GET /xiaomi-notes/status` reports `mode` (`unconfigured`, `ready`, `readonly`, `credentials_invalid`, or `circuit_open`), `writable`, `credentialSource` (`environment`, `windows-dpapi`, or `none`), `credentialWritable`, consecutive failures, retry delay, redacted-audit counters, and history-storage health. `TERRA_XIAOMI_READ_ONLY=true` rejects every Xiaomi mutation before network I/O. When Passport refresh is available, the first `401/403` triggers one refresh and one retry; a second authentication failure marks credentials invalid and suppresses further upstream calls until credentials are replaced. Other consecutive upstream failures open a bounded cooldown circuit; successful requests reset it.
 
 `POST /xiaomi-notes/credentials` accepts `{ "cookie": "complete i.mi.com Cookie" }` only from a loopback client on Windows. It rejects environment-variable overrides, malformed values, control characters, oversized input, and Cookies without a valid `serviceToken`. Success returns only refreshed redacted connector status.
+
+`PATCH /xiaomi-notes/refresh-credentials` accepts non-empty Passport fields (`passToken`, `userId`, `cUserId`, `deviceId`) from a loopback client and merges them into the Windows DPAPI bundle. Existing values are never returned; blank fields remain unchanged. `POST /xiaomi-notes/refresh-now` runs the evidence-backed `i.mi.com` Passport flow, creates and stores an initial Cookie when none exists, or refreshes the current DPAPI Cookie. It returns only redacted connector status. An active valid `XIAOMI_CLOUD_COOKIE` environment value cannot be overwritten. Automatic refresh is triggered once on a 401/403 and retries the original request once.
 
 `GET /xiaomi-notes/audit` returns at most 100 in-memory operation records. Entries contain only a normalized operation name, outcome, duration, timestamp, error class, and one-way target hash. They never include a Cookie, request/response body, upstream path, title, content, or raw note id.
 
@@ -266,35 +270,76 @@ Offline export accepts `{ "passphrase": "..." }` and returns `application/vnd.te
 
 ## RAG knowledge base
 
+Read/query routes:
+
 - `GET /rag/status`
+- `GET /rag/settings`
+- `GET /rag/vector-index/status`
+- `GET /rag/sources/xiaomi/status`
 - `GET /rag/documents`
+- `GET /rag/documents/:id`
+- `POST /rag/query`
+
+Mutation routes:
+
 - `POST /rag/documents`
 - `POST /rag/documents/from-resource/:resourceId`
-- `GET /rag/documents/:id`
 - `PATCH /rag/documents/:id`
 - `DELETE /rag/documents/:id`
 - `POST /rag/documents/:id/reindex`
 - `POST /rag/reindex`
-- `POST /rag/query`
+- `POST /rag/sources/xiaomi/sync`
+- `POST /rag/sources/xiaomi/retry`
+- `POST /rag/sources/xiaomi/cancel`
+
+Loopback-only settings/credential/index routes:
+
+- `PATCH /rag/settings`
+- `POST /rag/embedding/credentials`
+- `DELETE /rag/embedding/credentials`
+- `POST /rag/embedding/test`
+- `POST /rag/vector-index/rebuild`
+
+Embedding settings body (all fields optional):
+
+```json
+{
+  "enabled": true,
+  "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "model": "text-embedding-v4",
+  "dimensions": 768,
+  "batchSize": 10,
+  "timeoutMs": 20000,
+  "autoSyncXiaomi": true,
+  "xiaomiDefaultPrivacy": "private",
+  "autoRetry": true,
+  "dailyTokenBudget": 100000
+}
+```
+
+The settings response contains effective settings, stored settings, active environment-override names, a masked credential status and the vector version. Credential body is `{ "apiKey": "..." }`; the raw key is never returned. The test route sends only a fixed Terra test sentence.
 
 Create body:
 
 ```json
 {
-  "title": "江南交通资料",
-  "content": "# 高铁\n上海到杭州约 75 分钟。",
-  "tags": ["旅行", "交通"],
+  "title": "\u6c5f\u5357\u4ea4\u901a\u8d44\u6599",
+  "content": "# \u9ad8\u94c1\n\u4e0a\u6d77\u5230\u676d\u5dde\u7ea6 75 \u5206\u949f\u3002",
+\u4e0a\u6d77\u5230\u676d\u5dde\u7ea6 75 \u5206\u949f\u3002",
+  "tags": ["\u65c5\u884c", "\u4ea4\u901a"],
   "privacy": "private",
   "mimeType": "text/markdown",
   "source": "manual"
 }
 ```
 
+Xiaomi-sourced documents use `source=xiaomi-note` and `sourceManaged=true`. Their title, body, MIME type and filename cannot be patched or manually deleted; privacy and user tags remain writable. Source refresh preserves user tags.
+
 Query body:
 
 ```json
 {
-  "query": "上海到杭州需要多久",
+  "query": "\u4e0a\u6d77\u5230\u676d\u5dde\u9700\u8981\u591a\u4e45",
   "maxPrivacy": "private",
   "documentIds": [],
   "limit": 8,
@@ -304,8 +349,12 @@ Query body:
 }
 ```
 
-The response contains an `answer`, `confidence`, numbered `citations`, query-side injection warnings, privacy/flagged/sensitive/duplicate exclusion counts, and the effective provider policy. `provider=local` is the default and makes no external requests.
+The response contains `answer`, `confidence`, numbered `citations`, query-side injection warnings, exclusion counts, provider policy, and `retrieval: { mode: "hybrid" | "local", reason? }`. Local mode may still make one Aliyun query-embedding request when dense hybrid retrieval is enabled; `provider.externalRequests` reports the actual behavior.
 
-`maxPrivacy` defaults to `private`. Secret documents require explicit `secret`; high-risk prompt-injection chunks require `includeFlagged=true` and remain risk-labelled. Document content, findings, terms and sparse vectors share the `terra-rag-state` encrypted envelope.
+`maxPrivacy` defaults to `private`. Secret documents require explicit `secret`, never enter LanceDB and never go to Aliyun. High-risk sensitive query text skips Aliyun query embedding and falls back to local retrieval. High-risk prompt-injection chunks require `includeFlagged=true` and remain risk-labelled.
 
-`provider=external` requires a configured allowlisted OpenAI-compatible endpoint and `externalConsent=true` on that request. It rejects secret scope, flagged inclusion, and high-severity sensitive query text before network I/O; documents with high-severity findings in their title or content are excluded. Terra locally narrows to 24 chunks and sends only that bounded candidate set for embedding rerank and cited generation. Returned citation numbers must refer to supplied evidence. External vectors and answers are not persisted or placed in the local query cache. Provider failures return an error instead of silently changing answer mode.
+`provider=external` is the separate optional answer/rerank adapter. It still requires a configured allowlisted OpenAI-compatible endpoint and `externalConsent=true`, rejects secret scope/flagged inclusion/high-severity query text before network I/O, and does not persist returned answers or external rerank vectors.
+
+Xiaomi full sync is single-run and coalescing. Status reports scanning/indexing/cancelling/failed state, counters and ledger totals. Deletion propagation occurs only after complete pagination succeeds without cancellation. Targeted Xiaomi mutations are queued by the Xiaomi Notes controller.
+
+Vector rebuild embeds all non-secret, non-isolated chunks into a pending version and atomically activates it only if the full rebuild succeeds. If LanceDB is unavailable or the active index is missing, query falls back to BM25/sparse retrieval instead of failing server startup.

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { ragApi } from '../services/ragApi'
@@ -10,7 +10,9 @@ import type {
   RagPrivacy,
   RagQueryProvider,
   RagQueryResult,
-  RagStatus
+  RagStatus,
+  RagVectorIndexStatus,
+  XiaomiRagSyncStatus
 } from '../shared/rag'
 
 type WorkspaceTab = 'query' | 'document'
@@ -26,6 +28,8 @@ const route = useRoute()
 const documents = ref<RagDocumentSummary[]>([])
 const selected = ref<RagDocument>()
 const status = ref<RagStatus>()
+const xiaomiSync = ref<XiaomiRagSyncStatus>()
+const vectorIndex = ref<RagVectorIndexStatus>()
 const queryResult = ref<RagQueryResult>()
 const filter = ref('')
 const workspaceTab = ref<WorkspaceTab>('query')
@@ -34,10 +38,13 @@ const loading = ref(false)
 const saving = ref(false)
 const querying = ref(false)
 const reindexing = ref(false)
+const syncingXiaomi = ref(false)
+const rebuildingVectors = ref(false)
 const error = ref('')
 const showCreate = ref(false)
 const createMode = ref<CreateMode>('document')
 const savedSnapshot = ref('')
+let syncPollTimer = 0
 
 const editForm = reactive({ title: '', content: '', tags: '', privacy: 'private' as RagPrivacy, mimeType: 'text/plain' as RagMimeType, originalFilename: '' })
 const createForm = reactive({ title: '', content: '', tags: '', privacy: 'private' as RagPrivacy, mimeType: 'text/plain' as RagMimeType, originalFilename: '', resourceId: '' })
@@ -53,6 +60,15 @@ const selectedHighSensitive = computed(() => selected.value?.sensitiveFindings.f
 const selectedHighInjection = computed(() => selected.value?.injectionFindings.filter((finding) => finding.severity === 'high') || [])
 const canShowDocument = computed(() => Boolean(selected.value))
 const externalAvailable = computed(() => Boolean(status.value?.externalProvider.configured))
+const xiaomiSyncActive = computed(() => ['scanning', 'indexing', 'cancelling'].includes(xiaomiSync.value?.state || ''))
+const sourceManaged = computed(() => Boolean(selected.value?.sourceManaged))
+const totalVectorDocuments = computed(() => {
+  const coverage = vectorIndex.value?.coverage || status.value?.vectorCoverage
+  return coverage ? coverage.ready + coverage.pending + coverage.failed + coverage.localOnly : 0
+})
+const vectorCoveragePercent = computed(() => totalVectorDocuments.value
+  ? Math.round(((vectorIndex.value?.coverage.ready || status.value?.vectorCoverage.ready || 0) / totalVectorDocuments.value) * 100)
+  : 0)
 
 onMounted(async () => {
   window.addEventListener('keydown', handleShortcut)
@@ -61,7 +77,10 @@ onMounted(async () => {
   if (documentId) await openDocumentById(documentId)
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleShortcut)
+  window.clearTimeout(syncPollTimer)
+})
 onBeforeRouteLeave(() => allowDiscard())
 
 watch(() => queryValue(route.query.document), (documentId, previous) => {
@@ -75,10 +94,69 @@ async function refresh(showLoading = true) {
     const [nextStatus, nextDocuments] = await Promise.all([ragApi.getStatus(), ragApi.getDocuments()])
     status.value = nextStatus
     documents.value = nextDocuments
+    const [nextSync, nextVector] = await Promise.allSettled([ragApi.getXiaomiSyncStatus(), ragApi.getVectorIndexStatus()])
+    if (nextSync.status === 'fulfilled') xiaomiSync.value = nextSync.value
+    if (nextVector.status === 'fulfilled') vectorIndex.value = nextVector.value
+    scheduleSyncPoll()
   } catch (cause) {
     error.value = messageFrom(cause)
   } finally {
     if (showLoading) loading.value = false
+  }
+}
+
+
+async function refreshSyncStatus() {
+  try {
+    xiaomiSync.value = await ragApi.getXiaomiSyncStatus()
+    scheduleSyncPoll()
+  } catch (cause) {
+    if (xiaomiSyncActive.value) error.value = messageFrom(cause)
+  }
+}
+
+function scheduleSyncPoll() {
+  window.clearTimeout(syncPollTimer)
+  if (xiaomiSyncActive.value) syncPollTimer = window.setTimeout(() => void refreshSyncStatus(), 2_000)
+}
+
+async function syncXiaomiNotes(retry = false) {
+  if (syncingXiaomi.value || xiaomiSyncActive.value) return
+  syncingXiaomi.value = true
+  error.value = ''
+  try {
+    xiaomiSync.value = retry ? await ragApi.retryXiaomiSync() : await ragApi.syncXiaomiNotes()
+    scheduleSyncPoll()
+  } catch (cause) {
+    error.value = messageFrom(cause)
+  } finally {
+    syncingXiaomi.value = false
+  }
+}
+
+async function cancelXiaomiSync() {
+  if (!xiaomiSyncActive.value) return
+  try {
+    xiaomiSync.value = await ragApi.cancelXiaomiSync()
+    scheduleSyncPoll()
+  } catch (cause) {
+    error.value = messageFrom(cause)
+  }
+}
+
+async function rebuildVectorIndex() {
+  if (rebuildingVectors.value) return
+  if (!window.confirm('\u5c06\u4f7f\u7528\u5f53\u524d\u963f\u91cc\u4e91 Embedding \u914d\u7f6e\u91cd\u5efa\u5168\u90e8\u975e\u673a\u5bc6\u6587\u6863\u7684\u5411\u91cf\u7d22\u5f15\u3002\u7ee7\u7eed\u5417\uff1f')) return
+  rebuildingVectors.value = true
+  error.value = ''
+  try {
+    await ragApi.rebuildVectorIndex()
+    await refresh(false)
+  } catch (cause) {
+    error.value = messageFrom(cause)
+    await refresh(false)
+  } finally {
+    rebuildingVectors.value = false
   }
 }
 
@@ -111,7 +189,7 @@ function applyDocument(document: RagDocument) {
   Object.assign(editForm, {
     title: document.title,
     content: document.content,
-    tags: document.tags.join(', '),
+    tags: (document.sourceManaged ? document.userTags || [] : document.tags).join(', '),
     privacy: document.privacy,
     mimeType: document.mimeType,
     originalFilename: document.originalFilename || ''
@@ -176,14 +254,17 @@ async function saveDocument() {
   saving.value = true
   error.value = ''
   try {
-    const document = await ragApi.updateDocument(selected.value.id, {
-      title: editForm.title.trim(),
-      content: editForm.content,
-      tags: splitList(editForm.tags),
-      privacy: editForm.privacy,
-      mimeType: editForm.mimeType,
-      originalFilename: editForm.originalFilename
-    })
+    const patch = selected.value.sourceManaged
+      ? { tags: splitList(editForm.tags), privacy: editForm.privacy }
+      : {
+          title: editForm.title.trim(),
+          content: editForm.content,
+          tags: splitList(editForm.tags),
+          privacy: editForm.privacy,
+          mimeType: editForm.mimeType,
+          originalFilename: editForm.originalFilename
+        }
+    const document = await ragApi.updateDocument(selected.value.id, patch)
     applyDocument(document)
     await refresh(false)
     return document
@@ -388,6 +469,7 @@ function formatDate(value: number) {
         <p class="mt-1 text-xs text-secondary">{{ status?.documentCount || 0 }} 个文档 · {{ status?.chunkCount || 0 }} 个片段 · <span :class="status?.encryptedAtRest ? 'text-primary' : 'text-tertiary'">{{ status?.encryptedAtRest ? '数据已加密' : '数据未加密' }}</span></p>
       </div>
       <div class="flex items-center gap-2">
+        <RouterLink to="/settings" class="header-action border border-outline-variant/40 text-secondary" title="知识库设置"><span class="material-symbols-outlined text-[19px]">tune</span><span class="hidden sm:inline">设置</span></RouterLink>
         <button type="button" class="header-action border border-outline-variant/40 text-primary md:hidden" @click="openQueryWorkspace"><span class="material-symbols-outlined text-[19px]">search</span>检索</button>
         <button type="button" class="header-action border border-outline-variant/40 text-primary" :disabled="reindexing" title="重建全部索引" @click="reindexAll"><span class="material-symbols-outlined text-[19px]" :class="{ 'animate-spin': reindexing }">sync</span><span class="hidden sm:inline">重建</span></button>
         <button type="button" class="header-action bg-primary text-on-primary" @click="showCreate = true"><span class="material-symbols-outlined text-[19px]">note_add</span>接入文档</button>
@@ -396,6 +478,21 @@ function formatDate(value: number) {
 
     <div v-if="error" role="alert" class="mx-4 mt-3 flex items-start gap-2 rounded-lg bg-error-container/60 p-3 text-sm text-on-error-container"><span class="material-symbols-outlined text-[20px]">error</span><span class="min-w-0 flex-1">{{ error }}</span><button type="button" class="icon-button" aria-label="关闭错误提示" @click="error = ''"><span class="material-symbols-outlined text-[18px]">close</span></button></div>
     <div v-if="status?.resourceSyncError" class="mx-4 mt-3 rounded-lg bg-tertiary-container/50 p-3 text-xs text-on-tertiary-container">Resource 索引同步失败：{{ status.resourceSyncError }}</div>
+
+    <section class="mx-4 mt-3 grid flex-shrink-0 gap-2 md:grid-cols-2">
+      <div class="sync-card">
+        <span class="sync-icon material-symbols-outlined">note_stack</span>
+        <div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><strong class="text-xs">小米笔记增量同步</strong><span class="status-chip">{{ xiaomiSync?.state || 'idle' }}</span></div><p class="mt-1 truncate text-[10px] text-secondary">{{ xiaomiSync?.error || (xiaomiSync?.lastSuccessAt ? `最近成功 ${formatDate(xiaomiSync.lastSuccessAt)}` : '尚未完成同步') }} · 活跃 {{ xiaomiSync?.ledger.active || 0 }} · 失败 {{ xiaomiSync?.ledger.failed || 0 }}</p></div>
+        <button v-if="xiaomiSyncActive" type="button" class="mini-action text-error" @click="cancelXiaomiSync">取消</button>
+        <button v-else-if="xiaomiSync?.state === 'failed' || xiaomiSync?.ledger.failed" type="button" class="mini-action text-tertiary" :disabled="syncingXiaomi" @click="syncXiaomiNotes(true)">重试</button>
+        <button v-else type="button" class="mini-action text-primary" :disabled="syncingXiaomi" @click="syncXiaomiNotes(false)">{{ syncingXiaomi ? '请求中' : '同步' }}</button>
+      </div>
+      <div class="sync-card">
+        <span class="sync-icon material-symbols-outlined">database</span>
+        <div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><strong class="text-xs">语义向量索引</strong><span class="status-chip">{{ vectorCoveragePercent }}%</span></div><p class="mt-1 truncate text-[10px] text-secondary">就绪 {{ vectorIndex?.coverage.ready || status?.vectorCoverage.ready || 0 }} · 待处理 {{ vectorIndex?.coverage.pending || status?.vectorCoverage.pending || 0 }} · 本地专用 {{ vectorIndex?.coverage.localOnly || status?.vectorCoverage.localOnly || 0 }} · {{ vectorIndex?.store.message || status?.vectorStore.message }}</p></div>
+        <button type="button" class="mini-action text-primary" :disabled="rebuildingVectors || !status?.denseEmbedding.configured" @click="rebuildVectorIndex">{{ rebuildingVectors ? '重建中' : '重建向量' }}</button>
+      </div>
+    </section>
 
     <div class="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)]">
       <aside class="min-h-0 border-r border-outline-variant/25 bg-surface-container-low/45" :class="{ 'hidden md:block': selected || mobileWorkspace }">
@@ -406,7 +503,7 @@ function formatDate(value: number) {
             <button v-for="document in filteredDocuments" :key="document.id" type="button" class="mb-2 w-full rounded-lg border p-4 text-left transition" :class="selected?.id === document.id ? 'border-primary/40 bg-primary-container text-on-primary-container' : 'border-transparent bg-surface-bright hover:border-outline-variant/40'" @click="selectDocument(document)">
               <div class="flex items-start justify-between gap-2"><h3 class="line-clamp-2 min-w-0 text-sm font-bold">{{ document.title }}</h3><span class="flex-shrink-0 text-[9px] font-bold">{{ privacyLabel(document.privacy) }}</span></div>
               <p class="mt-2 line-clamp-2 text-xs leading-5 opacity-70">{{ document.summary }}</p>
-              <div class="mt-3 flex items-center justify-between gap-2 text-[10px] opacity-65"><span>{{ document.chunkCount }} 片段 · {{ sourceLabel(document.source) }}</span><span v-if="document.highSensitiveFindingCount || document.highInjectionFindingCount" class="font-bold text-error">风险 {{ document.highSensitiveFindingCount + document.highInjectionFindingCount }}</span></div>
+              <div class="mt-3 flex items-center justify-between gap-2 text-[10px] opacity-65"><span>{{ document.chunkCount }} 片段 · {{ sourceLabel(document.source) }}<span v-if="document.vectorState"> · {{ document.vectorState }}</span></span><span v-if="document.highSensitiveFindingCount || document.highInjectionFindingCount" class="font-bold text-error">风险 {{ document.highSensitiveFindingCount + document.highInjectionFindingCount }}</span></div>
             </button>
             <div v-if="!loading && !filteredDocuments.length" class="empty-state"><span class="material-symbols-outlined text-4xl">inventory_2</span><p>{{ filter ? '没有匹配文档' : '还没有知识文档' }}</p></div>
           </div>
@@ -423,7 +520,7 @@ function formatDate(value: number) {
             </div>
             <div v-if="workspaceTab === 'document' && selected" class="flex flex-shrink-0 items-center gap-1">
               <button type="button" class="tool-button" title="重建当前文档索引" aria-label="重建当前文档索引" :disabled="reindexing" @click="reindexDocument"><span class="material-symbols-outlined" :class="{ 'animate-spin': reindexing }">refresh</span></button>
-              <button type="button" class="tool-button text-error" title="删除文档" aria-label="删除文档" @click="deleteDocument"><span class="material-symbols-outlined">delete</span></button>
+              <button v-if="!selected.sourceManaged" type="button" class="tool-button text-error" title="删除文档" aria-label="删除文档" @click="deleteDocument"><span class="material-symbols-outlined">delete</span></button>
               <button type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="!isDirty || saving" @click="saveDocument">{{ saving ? '保存中…' : '保存' }}</button>
             </div>
           </div>
@@ -449,7 +546,7 @@ function formatDate(value: number) {
               <section class="min-w-0">
                 <div v-if="querying" class="empty-state min-h-72"><span class="material-symbols-outlined animate-spin text-3xl">progress_activity</span><p>检索与排序中…</p></div>
                 <template v-else-if="queryResult">
-                  <div class="flex flex-wrap items-center gap-2 text-xs font-bold"><span class="rounded-lg bg-primary-container px-2 py-1 text-on-primary-container">置信度 {{ confidenceLabel(queryResult.confidence) }}</span><span class="text-secondary">{{ queryResult.citations.length }} 条引用</span><span v-if="queryResult.excluded.privacy" class="text-secondary">隐私排除 {{ queryResult.excluded.privacy }}</span><span v-if="queryResult.excluded.flagged" class="text-tertiary">隔离 {{ queryResult.excluded.flagged }}</span><span v-if="queryResult.excluded.sensitive" class="text-error">敏感排除 {{ queryResult.excluded.sensitive }}</span></div>
+                  <div class="flex flex-wrap items-center gap-2 text-xs font-bold"><span class="rounded-lg bg-primary-container px-2 py-1 text-on-primary-container">置信度 {{ confidenceLabel(queryResult.confidence) }}</span><span class="text-secondary">{{ queryResult.citations.length }} 条引用</span><span class="rounded-lg bg-surface-container-high px-2 py-1 text-secondary">{{ queryResult.retrieval?.mode === 'hybrid' ? '混合检索' : '本地检索' }}</span><span v-if="queryResult.retrieval?.reason" class="text-tertiary">{{ queryResult.retrieval.reason }}</span><span v-if="queryResult.excluded.privacy" class="text-secondary">隐私排除 {{ queryResult.excluded.privacy }}</span><span v-if="queryResult.excluded.flagged" class="text-tertiary">隔离 {{ queryResult.excluded.flagged }}</span><span v-if="queryResult.excluded.sensitive" class="text-error">敏感排除 {{ queryResult.excluded.sensitive }}</span></div>
                   <h3 class="mt-5 font-headline text-xl font-bold">检索结果</h3>
                   <div class="mt-4 whitespace-pre-wrap text-[15px] leading-8 text-on-surface">{{ queryResult.answer }}</div>
                   <div v-if="queryResult.queryWarnings.length" class="mt-6 border-l-2 border-error pl-4"><p class="text-xs font-bold text-error">查询中检测到指令覆盖特征</p><p v-for="warning in queryResult.queryWarnings" :key="warning.id" class="mt-1 text-xs text-secondary">{{ warning.message }}</p></div>
@@ -474,14 +571,14 @@ function formatDate(value: number) {
           <div v-else-if="selected" class="min-h-0 flex-1 overflow-y-auto p-5 md:p-7">
             <section class="mx-auto max-w-5xl">
               <div class="grid gap-4 md:grid-cols-2">
-                <label class="field md:col-span-2">标题<input v-model="editForm.title" maxlength="300" class="font-headline text-lg font-bold" /></label>
+                <label class="field md:col-span-2">标题<span v-if="sourceManaged" class="ml-2 text-[10px] font-normal text-secondary">由小米笔记管理</span><input v-model="editForm.title" :disabled="sourceManaged" maxlength="300" class="font-headline text-lg font-bold" /></label>
                 <label class="field">隐私级别<select v-model="editForm.privacy"><option v-for="option in privacyOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>
-                <label class="field">文档类型<select v-model="editForm.mimeType"><option value="text/plain">纯文本</option><option value="text/markdown">Markdown</option><option value="application/json">JSON</option><option value="text/csv">CSV</option></select></label>
+                <label class="field">文档类型<select v-model="editForm.mimeType" :disabled="sourceManaged"><option value="text/plain">纯文本</option><option value="text/markdown">Markdown</option><option value="application/json">JSON</option><option value="text/csv">CSV</option></select></label>
                 <label class="field md:col-span-2">标签<input v-model="editForm.tags" placeholder="逗号分隔" /></label>
-                <label class="field md:col-span-2">正文<textarea v-model="editForm.content" maxlength="150000" rows="22" class="font-mono text-sm leading-6"></textarea></label>
+                <label class="field md:col-span-2">正文<span v-if="sourceManaged" class="ml-2 text-[10px] font-normal text-secondary">刷新小米笔记后自动更新</span><textarea v-model="editForm.content" :disabled="sourceManaged" maxlength="150000" rows="22" class="font-mono text-sm leading-6"></textarea></label>
               </div>
 
-              <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-secondary"><span>{{ selected.chunkCount }} 个片段</span><span>{{ editForm.content.length.toLocaleString() }} 字符</span><span>{{ sourceLabel(selected.source) }}</span><span>索引于 {{ formatDate(selected.indexedAt) }}</span><span v-if="isDirty" class="font-bold text-tertiary">未保存</span></div>
+              <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-secondary"><span>{{ selected.chunkCount }} 个片段</span><span>{{ editForm.content.length.toLocaleString() }} 字符</span><span>{{ sourceLabel(selected.source) }}</span><span v-if="selected.vectorState">向量 {{ selected.vectorState }}</span><span>索引于 {{ formatDate(selected.indexedAt) }}</span><span v-if="isDirty" class="font-bold text-tertiary">未保存</span></div>
 
               <section v-if="selected.sensitiveFindings.length" class="mt-8 border-t border-outline-variant/30 pt-6">
                 <div class="flex items-center justify-between gap-3"><div><h3 class="font-headline text-base font-bold">敏感信息检测</h3><p class="mt-1 text-xs text-secondary">{{ selected.sensitiveFindings.length }} 项，其中高风险 {{ selectedHighSensitive.length }} 项</p></div><span class="material-symbols-outlined" :class="selectedHighSensitive.length ? 'text-error' : 'text-tertiary'">shield_lock</span></div>
@@ -526,6 +623,18 @@ function formatDate(value: number) {
 </template>
 
 <style scoped>
+.sync-card {
+  @apply flex min-w-0 items-center gap-3 rounded-lg border border-outline-variant/25 bg-surface-container-low px-3 py-2;
+}
+.sync-icon {
+  @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary-container text-[18px] text-on-primary-container;
+}
+.status-chip {
+  @apply rounded-full bg-surface-container-high px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-secondary;
+}
+.mini-action {
+  @apply flex-shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-40;
+}
 .header-action {
   @apply flex h-10 items-center gap-1 rounded-lg px-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40;
 }

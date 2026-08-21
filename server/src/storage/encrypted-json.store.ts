@@ -1,6 +1,6 @@
 ﻿import { ServiceUnavailableException } from '@nestjs/common'
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto'
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 const MIN_SECRET_LENGTH = 16
@@ -84,6 +84,22 @@ export class EncryptedJsonStore<T> {
       this.value = structuredClone(nextValue)
       await this.persistValue(this.value)
       return structuredClone(this.value)
+    })
+  }
+
+  /** Creates a byte-for-byte recovery copy before an explicit schema migration. */
+  createRecoveryCopy(label = 'pre-migration') {
+    return this.enqueue(async () => {
+      const safeLabel = label.replace(/[^a-z0-9._-]/gi, '-').slice(0, 64) || 'pre-migration'
+      const recoveryPath = `${this.options.filePath}.${safeLabel}.bak`
+      await mkdir(dirname(this.options.filePath), { recursive: true })
+      try {
+        await copyFile(this.options.filePath, recoveryPath)
+        return recoveryPath
+      } catch (error) {
+        if ((error as { code?: string }).code === 'ENOENT') return undefined
+        throw error
+      }
     })
   }
 

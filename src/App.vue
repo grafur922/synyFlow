@@ -10,6 +10,7 @@ const taskStore = useTaskStore()
 const isMobile = useIsMobile()
 const desktopSidebarWidth = ref(256)
 const desktopSidebarCollapsed = ref(false)
+const isSidebarResizing = ref(false)
 const effectiveSidebarWidth = computed(() => desktopSidebarCollapsed.value ? 76 : desktopSidebarWidth.value)
 let stopSidebarDrag: (() => void) | undefined
 
@@ -30,6 +31,7 @@ function startSidebarResize(event: PointerEvent) {
   if (event.button !== 0) return
   event.preventDefault()
   desktopSidebarCollapsed.value = false
+  isSidebarResizing.value = true
   const startX = event.clientX
   const startWidth = desktopSidebarWidth.value
   document.body.classList.add('sidebar-resize-active')
@@ -43,6 +45,7 @@ function startSidebarResize(event: PointerEvent) {
     window.removeEventListener('pointercancel', stop)
     window.removeEventListener('blur', stop)
     document.body.classList.remove('sidebar-resize-active')
+    isSidebarResizing.value = false
     localStorage.setItem('terra_primary_sidebar_width', String(Math.round(desktopSidebarWidth.value)))
     stopSidebarDrag = undefined
   }
@@ -85,10 +88,10 @@ const backendStatus = computed(() => {
     return { label: 'Todo 本地模式', dotClass: 'bg-tertiary', textClass: 'text-tertiary' }
   }
   if (taskStore.backendOnline) {
-    return { label: 'Todo 已同步', dotClass: 'bg-primary', textClass: 'text-primary' }
+    return { label: '在线', dotClass: 'bg-primary', textClass: 'text-primary' }
   }
   return {
-    label: taskStore.loading ? 'Todo 连接中' : 'Todo 后端离线',
+    label: taskStore.loading ? '连接中' : '离线',
     dotClass: 'bg-error',
     textClass: 'text-error'
   }
@@ -126,9 +129,9 @@ function navigateTo(path: string) {
 <template>
   <div class="min-h-screen overflow-hidden bg-background text-on-background font-body antialiased">
     <template v-if="!isMobile">
-      <nav class="fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-outline-variant/30 bg-surface-container-low py-6 md:flex" :style="{ width: `${effectiveSidebarWidth}px` }">
-        <div class="mb-8 flex items-center gap-3 px-6">
-          <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-on-primary shadow-sm">
+      <nav class="fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-outline-variant/30 bg-surface-container-low py-6 md:flex" :class="{ 'sidebar-transition': !isSidebarResizing }" :style="{ width: `${effectiveSidebarWidth}px` }">
+        <div class="mb-8 flex items-center gap-3" :class="desktopSidebarCollapsed ? 'justify-center px-0' : 'px-6'">
+          <div class="flex h-11 w-11 flex-shrink-0 aspect-square items-center justify-center rounded-xl bg-primary text-on-primary shadow-sm">
             <span class="material-symbols-outlined">hub</span>
           </div>
           <div v-if="!desktopSidebarCollapsed" class="min-w-0">
@@ -137,50 +140,50 @@ function navigateTo(path: string) {
           </div>
         </div>
 
-        <div class="mb-6 px-4">
+        <div class="mb-6" :class="desktopSidebarCollapsed ? 'px-0' : 'px-4'">
           <button
-            class="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-bold text-on-primary shadow-sm transition hover:bg-surface-tint active:scale-95"
+            class="flex h-12 items-center justify-center gap-2 rounded-xl bg-primary font-bold text-on-primary shadow-sm transition hover:bg-surface-tint active:scale-95" :class="desktopSidebarCollapsed ? 'mx-auto w-12 aspect-square rounded-full px-0' : 'w-full px-4'"
             @click="navigateTo(primaryAction.path)"
           >
-            <span class="material-symbols-outlined">{{ primaryAction.icon }}</span>
+            <span class="inline-flex h-6 w-6 flex-shrink-0 aspect-square items-center justify-center"><span class="material-symbols-outlined">{{ primaryAction.icon }}</span></span>
             <span v-if="!desktopSidebarCollapsed">{{ primaryAction.label }}</span>
           </button>
         </div>
 
-        <ul class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3">
+        <ul class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" :class="desktopSidebarCollapsed ? 'px-2' : 'px-3'">
           <li v-for="item in desktopItems" :key="item.key">
             <button
-              class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold transition-colors"
-              :class="activeTab === item.key ? 'bg-primary-container text-on-primary-container' : 'text-secondary hover:bg-surface-container-high hover:text-primary'"
+              class="flex h-12 items-center gap-3 rounded-xl text-left text-sm font-bold transition-colors"
+              :class="[desktopSidebarCollapsed ? 'mx-auto w-12 aspect-square justify-center rounded-full px-0' : 'w-full justify-start px-4', activeTab === item.key ? 'bg-primary-container text-on-primary-container' : 'text-secondary hover:bg-surface-container-high hover:text-primary']"
               @click="navigateTo(item.path)"
             >
-              <span class="material-symbols-outlined" :class="{ filled: activeTab === item.key }">{{ item.icon }}</span>
+              <span class="inline-flex h-6 w-6 flex-shrink-0 aspect-square items-center justify-center"><span class="material-symbols-outlined" :class="{ filled: activeTab === item.key }">{{ item.icon }}</span></span>
               <span v-if="!desktopSidebarCollapsed">{{ item.label }}</span>
             </button>
           </li>
         </ul>
 
-        <div class="mx-4 mt-4 border-t border-outline-variant/30 pt-4">
+        <div class="mt-4 border-t border-outline-variant/30 pt-4" :class="desktopSidebarCollapsed ? 'mx-2' : 'mx-4'">
           <button
-            class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-bold transition-colors"
-            :class="activeTab === 'settings' ? 'bg-primary-container text-on-primary-container' : 'text-secondary hover:bg-surface-container-high hover:text-primary'"
+            class="flex h-12 items-center gap-3 rounded-xl text-left text-sm font-bold transition-colors"
+            :class="[desktopSidebarCollapsed ? 'mx-auto w-12 aspect-square justify-center rounded-full px-0' : 'w-full justify-start px-4', activeTab === 'settings' ? 'bg-primary-container text-on-primary-container' : 'text-secondary hover:bg-surface-container-high hover:text-primary']"
             @click="navigateTo('/settings')"
           >
-            <span class="material-symbols-outlined">settings</span>
+            <span class="inline-flex h-6 w-6 flex-shrink-0 aspect-square items-center justify-center"><span class="material-symbols-outlined">settings</span></span>
             <span v-if="!desktopSidebarCollapsed">设置与连接器</span>
           </button>
-          <div class="mt-3 flex items-center gap-2 px-4 text-[11px] font-bold" :class="backendStatus.textClass">
-            <span class="h-2 w-2 flex-shrink-0 rounded-full" :class="backendStatus.dotClass"></span>
+          <div class="mt-3 flex items-center gap-2 text-[11px] font-bold" :class="[desktopSidebarCollapsed ? 'justify-center px-0' : 'justify-start px-4', backendStatus.textClass]">
+            <span class="h-2 w-2 flex-shrink-0 aspect-square rounded-full" :class="backendStatus.dotClass"></span>
             <span v-if="!desktopSidebarCollapsed">{{ backendStatus.label }}</span>
           </div>
-          <button class="mt-3 flex w-full items-center justify-center rounded-lg py-2 text-secondary hover:bg-surface-container-high hover:text-primary" :aria-label="desktopSidebarCollapsed ? '展开一级侧边栏' : '折叠一级侧边栏'" @click="togglePrimarySidebar">
+          <button class="mt-3 flex h-10 items-center justify-center rounded-lg text-secondary hover:bg-surface-container-high hover:text-primary" :class="desktopSidebarCollapsed ? 'mx-auto w-10 aspect-square rounded-full' : 'w-full'" :aria-label="desktopSidebarCollapsed ? '展开一级侧边栏' : '折叠一级侧边栏'" @click="togglePrimarySidebar">
             <span class="material-symbols-outlined text-[20px]">{{ desktopSidebarCollapsed ? 'right_panel_open' : 'left_panel_close' }}</span>
           </button>
         </div>
         <div class="absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none hover:bg-primary/25" role="separator" aria-label="拖动调整一级侧边栏宽度" @pointerdown="startSidebarResize"></div>
       </nav>
 
-      <main class="hidden h-screen overflow-hidden md:block" :style="{ marginLeft: `${effectiveSidebarWidth}px`, width: `calc(100% - ${effectiveSidebarWidth}px)` }">
+      <main class="hidden h-screen overflow-hidden md:block" :class="{ 'sidebar-main-transition': !isSidebarResizing }" :style="{ marginLeft: `${effectiveSidebarWidth}px`, width: `calc(100% - ${effectiveSidebarWidth}px)` }">
         <router-view />
       </main>
     </template>
@@ -236,6 +239,8 @@ function navigateTo(path: string) {
 </template>
 
 <style scoped>
+.sidebar-transition { transition: width 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.sidebar-main-transition { transition: margin-left 180ms cubic-bezier(0.2, 0.8, 0.2, 1), width 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 .mobile-shell {
   height: 100vh;
   height: 100dvh;

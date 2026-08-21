@@ -3,7 +3,10 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { useTaskStore } from './store/task'
+import { initializeFontSizePreference } from './services/appearance'
 import './index.css'
+
+initializeFontSizePreference()
 
 const app = createApp(App)
 const pinia = createPinia()

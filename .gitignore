@@ -49,4 +49,5 @@ note.png
 
 # Local browser layout audit output
 .visual-output/
+*.har
 

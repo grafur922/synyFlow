@@ -601,7 +601,7 @@ function formatFullDate(timestamp: number) {
         <button class="toolbar-button" :class="outlineVisible ? 'text-primary' : ''" :aria-label="outlineVisible ? '隐藏标题导航' : '显示标题导航'" @click="toggleOutline"><span class="material-symbols-outlined text-[20px]">toc</span></button>
         <button class="toolbar-button" aria-label="打开 Terra 历史归档" @click="openHistoryArchive"><span class="material-symbols-outlined text-[20px]">inventory_2</span></button>
         <button class="toolbar-button" :disabled="store.loading" aria-label="刷新笔记列表" @click="refresh"><span class="material-symbols-outlined text-[20px]" :class="{ 'animate-spin': store.loading }">refresh</span></button>
-        <button class="flex h-10 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-bold text-on-primary shadow-sm disabled:opacity-40" :disabled="!store.writable" @click="startNew"><span class="material-symbols-outlined text-[20px]">note_add</span><span class="hidden sm:inline">新建</span></button>
+        <button class="flex h-10 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-bold text-on-primary shadow-sm disabled:opacity-40" :disabled="!store.writable" @click="startNew"><span class="material-symbols-outlined logo text-[20px]">note_add</span><span class="hidden sm:inline">新建</span></button>
       </div>
     </header>
 

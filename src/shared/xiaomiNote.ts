@@ -59,6 +59,16 @@ export interface XiaomiConnectorStatus {
     lastFailureAt?: number
   }
   historyStorage?: XiaomiHistoryStorageStatus
+  passportRefresh: {
+    configured: boolean
+    source: 'environment' | 'windows-dpapi' | 'none'
+    writable: boolean
+    available: boolean
+    refreshing: boolean
+    lastSuccessAt?: number
+    lastFailureAt?: number
+    message: string
+  }
 }
 
 export interface SaveXiaomiNoteInput {

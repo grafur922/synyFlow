@@ -3,6 +3,7 @@ import type { Task } from '../shared/task'
 const BACKUP_KEYS = [
   'terra_tasks',
   'taskflow_theme',
+  'terra_font_size',
   'terra_primary_sidebar_width',
   'terra_primary_sidebar_collapsed',
   'terra_notes_secondary_sidebar_width',
@@ -134,10 +135,12 @@ function validatePayload(value: unknown) {
   if (!payload || payload.format !== 'terra-client-backup-payload' || payload.version !== 1 || typeof payload.createdAt !== 'string' || !payload.values || typeof payload.values !== 'object' || Array.isArray(payload.values)) throw new Error('客户端备份内容校验失败')
   const values = payload.values as Record<string, unknown>
   if (Object.keys(values).some((key) => !BACKUP_KEYS.includes(key as BackupKey))) throw new Error('客户端备份包含未知数据项')
+  if (!('terra_font_size' in values)) values.terra_font_size = null
   for (const key of BACKUP_KEYS) if (values[key] !== null && typeof values[key] !== 'string') throw new Error(`客户端备份项 ${key} 无效`)
 
   parseTasks(values.terra_tasks as string | null)
   validateEnum(values.taskflow_theme, ['forest', 'ocean', 'clay', 'amber'], '主题')
+  validateEnum(values.terra_font_size, ['compact', 'standard', 'comfortable', 'large'], '整体字体大小')
   validateNumber(values.terra_primary_sidebar_width, 208, 360, '一级侧边栏宽度')
   validateBoolean(values.terra_primary_sidebar_collapsed, '一级侧边栏状态')
   validateNumber(values.terra_notes_secondary_sidebar_width, 280, 560, '笔记侧边栏宽度')

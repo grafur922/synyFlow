@@ -46,3 +46,17 @@
 - 写操作串行执行，并在更新、恢复和软删除前建立 Terra 本地加密历史。
 - 富文本笔记在正文未变化时保留上游原始 `content`；修改正文会降级为已证明的普通文本结构，界面必须保留警告。
 - 上游冲突、凭证失效、连续失败熔断、只读模式和分页异常均显式失败，不静默覆盖或猜测重试。
+
+## 2026-07-20 Passport 刷新证据
+
+`ProxyPin_i.mi.com_2026-07-20.har` 已在本地分析，文件包含真实 Cookie 和会话字段，已加入 `.gitignore`，不得提交或分享。
+
+已证明的认证链路：
+
+1. `GET /api/user/login` 返回 `data.loginUrl`，主机为 `account.xiaomi.com`，路径为 `/pass/serviceLogin`，查询参数中的 `sid` 为 `i.mi.com`。
+2. `loginUrl` 的 callback 指向 `https://i.mi.com/sts`。
+3. Passport JSON 响应包含 `ssecurity`、`nonce`、`location`，并使用 `SHA1("nonce=<nonce>&<ssecurity>")` 的 Base64 值作为 `clientSign`。
+4. `/sts` 返回 302，并设置 `serviceToken`、`userId`、`i.mi.com_slh` 与 `i.mi.com_ph`。
+5. `/sts` 返回的 serviceToken 与后续 `/note/full/page`、`/note/note/{id}/` 成功请求中的 serviceToken 相同；匹配使用的是脱敏哈希，不记录原值。
+
+这证明小米笔记续期必须使用 `sid=i.mi.com`，不能复用只针对 `sid=micoapi` 的 MiNA 刷新工具。Passport 凭证和 HAR 仍属于敏感会话材料，完成验证后应撤销相关会话。

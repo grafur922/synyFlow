@@ -28,6 +28,8 @@ async function main() {
     TERRA_TRAVEL_FILE: join(tempRoot, 'travel.json'),
     TERRA_TRAVEL_ATTACHMENTS_DB: join(tempRoot, 'travel-attachments.sqlite'),
     TERRA_RAG_FILE: join(tempRoot, 'rag.json'),
+    TERRA_RAG_VECTOR_PATH: join(tempRoot, 'rag-vectors'),
+    TERRA_WINDOWS_SECRETS_FILE: join(tempRoot, 'secrets.json'),
     TERRA_XIAOMI_HISTORY_DB: join(tempRoot, 'history.sqlite'),
     TERRA_XIAOMI_METADATA_FILE: join(tempRoot, 'xiaomi-metadata.json'),
     XIAOMI_CLOUD_COOKIE: '',

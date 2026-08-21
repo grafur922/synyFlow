@@ -20,7 +20,8 @@
 ## P0：隐私与可靠性
 
 - [x] Windows 使用当前用户 DPAPI 文件保存小米 Cookie、数据密钥、历史密钥与远程 API Token；环境变量仅作为显式优先回退。
-- [x] 当环境变量未配置小米 Cookie 时，小米笔记页可通过仅限本机的接口录入完整 Cookie，校验 `serviceToken`、DPAPI 原子加密保存并热加载；浏览器不持久化凭证。
+- [x] 当环境变量中未检测到有效 `serviceToken` 时，小米笔记页可通过仅限本机的接口录入完整 Cookie，校验 `serviceToken`、DPAPI 原子加密保存并热加载；浏览器不持久化凭证。
+- [x] 基于 2026-07-20 HAR 证明的 `i.mi.com` Passport `/api/user/login → account.xiaomi.com/pass/serviceLogin → /sts` 链路实现 DPAPI 刷新凭证、设置页更新、401/403 单飞续期与一次重试。
 - [ ] macOS Keychain 生产验证与 Android Keystore 凭证适配。现有 macOS 实验代码保留，但按当前迭代要求暂停，不作为已支持平台发布。
 - [x] 历史存储支持 scrypt + AES-256-GCM、明文自动迁移、原子替换和错误密钥保护。
 - [x] 支持删除单个 Terra 历史版本和清理单篇全部历史，并保持原子加密写入。

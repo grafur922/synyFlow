@@ -53,6 +53,13 @@ export const xiaomiNotesApi = {
     body: JSON.stringify({ cookie })
   }),
 
+  updateRefreshCredentials: (input: { passToken?: string; userId?: string; cUserId?: string; deviceId?: string }) => request<XiaomiConnectorStatus>('/xiaomi-notes/refresh-credentials', {
+    method: 'PATCH',
+    body: JSON.stringify(input)
+  }),
+
+  refreshNow: () => request<XiaomiConnectorStatus>('/xiaomi-notes/refresh-now', { method: 'POST' }),
+
   getAudit: () => request<Array<{
     at: number
     operation: string

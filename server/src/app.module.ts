@@ -7,6 +7,7 @@ import { XiaomiNotesController } from './xiaomi-notes/xiaomi-notes.controller'
 import { XiaomiNotesService } from './xiaomi-notes/xiaomi-notes.service'
 import { XiaomiNoteHistoryService } from './xiaomi-notes/xiaomi-note-history.service'
 import { XiaomiNoteMetadataService } from './xiaomi-notes/xiaomi-note-metadata.service'
+import { XiaomiPassportService } from './xiaomi-notes/xiaomi-passport.service'
 import { ResourcesController } from './resources/resources.controller'
 import { ResourcesService } from './resources/resources.service'
 import { RssController } from './rss/rss.controller'
@@ -19,12 +20,15 @@ import { TravelAttachmentStore } from './travel/travel-attachment.store'
 import { TravelMapService } from './travel/travel-map.service'
 import { RagController } from './rag/rag.controller'
 import { RagService } from './rag/rag.service'
+import { AliyunEmbeddingProvider } from './rag/aliyun-embedding.provider'
+import { LanceDbVectorStore } from './rag/lancedb-vector.store'
+import { XiaomiNotesRagSyncService } from './rag/xiaomi-notes-rag-sync.service'
 import { ExternalRagProvider } from './rag/external-rag.provider'
 import { ApiAccessMiddleware } from './security/api-access'
 
 @Module({
   controllers: [HealthController, TasksController, XiaomiNotesController, ResourcesController, RssController, BlogController, TravelController, RagController],
-  providers: [TasksService, XiaomiNotesService, XiaomiNoteHistoryService, XiaomiNoteMetadataService, ResourcesService, RssService, BlogService, TravelAttachmentStore, TravelMapService, TravelService, ExternalRagProvider, RagService]
+  providers: [TasksService, XiaomiNotesService, XiaomiNoteHistoryService, XiaomiNoteMetadataService, XiaomiPassportService, ResourcesService, RssService, BlogService, TravelAttachmentStore, TravelMapService, TravelService, ExternalRagProvider, AliyunEmbeddingProvider, LanceDbVectorStore, RagService, XiaomiNotesRagSyncService]
 })
 export class AppModule implements NestModule {
   private readonly logger = new Logger('HTTP')
