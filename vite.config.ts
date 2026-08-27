@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import { fileURLToPath, URL } from "node:url";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -7,6 +8,11 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [vue()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
@@ -33,4 +39,29 @@ export default defineConfig(async () => ({
       }
     }
   },
+  // 优化重型依赖预热，避免首次打开页面时的冷编译白屏与卡顿
+  optimizeDeps: {
+    include: [
+      'vue',
+      'vue-router',
+      'pinia',
+      'lucide-vue-next',
+      'marked',
+      'highlight.js/lib/core',
+      'katex'
+    ]
+  },
+  build: {
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router', 'pinia'],
+          'vendor-icons': ['lucide-vue-next'],
+          'vendor-katex': ['katex'],
+          'vendor-markdown': ['marked', 'highlight.js/lib/core']
+        }
+      }
+    }
+  }
 }));

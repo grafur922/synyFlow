@@ -1,4 +1,4 @@
-﻿export type NotePrivacyLevel = 'public' | 'private' | 'secret'
+export type NotePrivacyLevel = 'public' | 'private'
 
 export interface XiaomiNoteMetadata {
   noteId: string

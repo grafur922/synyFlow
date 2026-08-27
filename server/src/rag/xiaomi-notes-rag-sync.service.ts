@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common'
 import { randomUUID } from 'node:crypto'
 import { XiaomiNotesService } from '../xiaomi-notes/xiaomi-notes.service'
 import type { RagSourceSyncStatus } from './rag.model'
@@ -6,19 +6,59 @@ import { RagService } from './rag.service'
 
 type TargetOperation = 'upsert' | 'delete'
 
+const AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000 // 每 15 分钟自动静默扫描一次
+
 @Injectable()
-export class XiaomiNotesRagSyncService {
+export class XiaomiNotesRagSyncService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(XiaomiNotesRagSyncService.name)
   private status: RagSourceSyncStatus = this.idleStatus()
   private runner?: Promise<void>
   private pendingFull = false
   private readonly pendingItems = new Map<string, TargetOperation>()
   private cancelRequested = false
   private autoRetryConsumed = false
+  private autoSyncTimer?: NodeJS.Timeout
 
   constructor(
     private readonly xiaomiNotes: XiaomiNotesService,
     private readonly rag: RagService
   ) {}
+
+  onModuleInit() {
+    // 启动 8 秒后首次静默同步，避免阻塞核心启动流程
+    setTimeout(() => {
+      void this.runSilentSyncIfConfigured()
+    }, 8000)
+
+    // 每 15 分钟定期静默增量同步
+    this.autoSyncTimer = setInterval(() => {
+      void this.runSilentSyncIfConfigured()
+    }, AUTO_SYNC_INTERVAL_MS)
+  }
+
+  onModuleDestroy() {
+    if (this.autoSyncTimer) {
+      clearInterval(this.autoSyncTimer)
+      this.autoSyncTimer = undefined
+    }
+  }
+
+  private async runSilentSyncIfConfigured() {
+    try {
+      const xiaomiStatus = this.xiaomiNotes.getStatus()
+      if (!xiaomiStatus.configured || xiaomiStatus.mode !== 'ready') return
+      const ragSettings = await this.rag.getSettings()
+      if (!ragSettings.settings.autoSyncXiaomi) return
+
+      // 仅在当前空闲时触发静默同步
+      if (this.status.state === 'idle' && !this.runner) {
+        this.logger.log('Executing scheduled background sync for Xiaomi Notes...')
+        await this.requestFullSync()
+      }
+    } catch (err: any) {
+      this.logger.debug(`Silent background sync skipped: ${err.message}`)
+    }
+  }
 
   async getStatus() {
     const ledger = await this.rag.getXiaomiSyncLedger()
@@ -97,14 +137,17 @@ export class XiaomiNotesRagSyncService {
     const ledger = new Map((await this.rag.getXiaomiSyncLedger()).map((entry) => [entry.sourceItemId, entry]))
     const cursors = new Set<string>()
     let cursor: string | undefined
+const MAX_SYNC_DETAILS_PER_RUN = 30 // 单次同步最多拉取 30 篇有变更笔记的详情，避免网络风暴与高延迟
+
     let pageNumber = 0
+    let detailFetchCount = 0
     try {
       while (true) {
         if (this.cancelRequested) return this.finishCancelled()
         pageNumber += 1
         if (pageNumber > 10_000) throw new Error('Xiaomi notes scan exceeded the page safety limit')
         this.status.currentPage = pageNumber
-        const page = await this.xiaomiNotes.findPage({ cursor, limit: 200, forceRefresh: true })
+        const page = await this.xiaomiNotes.findPage({ cursor, limit: 100, forceRefresh: false })
         if (!page || !Array.isArray(page.notes) || typeof page.lastPage !== 'boolean') throw new Error('Xiaomi notes returned an invalid page')
         for (const note of page.notes) {
           if (this.cancelRequested) return this.finishCancelled()
@@ -117,8 +160,19 @@ export class XiaomiNotesRagSyncService {
             this.status.processed += 1
             continue
           }
+
+          // 限制单次详情抓取数量，超出部分保留在下一轮增量处理
+          if (detailFetchCount >= MAX_SYNC_DETAILS_PER_RUN) {
+            this.status.skipped += 1
+            this.status.processed += 1
+            this.pendingFull = true
+            continue
+          }
+
           try {
-            const detail = await this.xiaomiNotes.findOne(note.id, true)
+            detailFetchCount += 1
+            // 优先从本地缓存获取详情，本地缓存缺失时才请求远端
+            const detail = await this.xiaomiNotes.findOne(note.id, false)
             const result = await this.rag.upsertXiaomiNote(detail, generation)
             if (result.outcome === 'created') this.status.created += 1
             else if (result.outcome === 'updated') this.status.updated += 1
@@ -132,7 +186,7 @@ export class XiaomiNotesRagSyncService {
             this.status.processed += 1
           }
         }
-        if (page.lastPage) break
+        if (page.lastPage || detailFetchCount >= MAX_SYNC_DETAILS_PER_RUN) break
         const nextCursor = page.nextCursor
         if (!nextCursor || cursors.has(nextCursor)) throw new Error('Xiaomi notes pagination cursor did not advance')
         cursors.add(nextCursor)

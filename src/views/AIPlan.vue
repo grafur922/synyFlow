@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
+import { BookOpen, Sparkles, MessageSquare, Send } from 'lucide-vue-next'
 
 const chatContainer = ref<HTMLElement | null>(null)
 const inputMessage = ref('')
@@ -66,13 +67,13 @@ onMounted(() => {
   <div class="flex-grow flex flex-col h-full bg-background relative overflow-hidden select-none pb-24 md:pb-6">
     <!-- Background Watermark -->
     <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] select-none z-0">
-      <span class="material-symbols-outlined text-[200px]">auto_stories</span>
+      <BookOpen class="w-64 h-64" :stroke-width="1" />
     </div>
 
     <!-- Header Section -->
     <header class="flex-shrink-0 px-6 py-4 border-b border-outline-variant/30 flex items-center gap-4 z-10 bg-background/80 backdrop-blur-md">
       <div class="p-2 bg-primary-container/10 rounded-lg text-primary">
-        <span class="material-symbols-outlined">auto_awesome</span>
+        <Sparkles class="h-5 w-5" :stroke-width="2" />
       </div>
       <div>
         <h2 class="font-headline text-xl font-bold text-on-background">AI 编排助手</h2>
@@ -130,7 +131,7 @@ onMounted(() => {
 
       <!-- Input Shell -->
       <div class="relative flex items-center bg-surface-container-lowest border border-outline-variant/50 rounded-full px-4 py-2 shadow-sm">
-        <span class="material-symbols-outlined text-outline mr-2 text-lg">chat_bubble</span>
+        <MessageSquare class="text-outline mr-2 h-4.5 w-4.5 flex-shrink-0" :stroke-width="1.8" />
         <input 
           v-model="inputMessage"
           @keydown.enter="handleSend"
@@ -142,7 +143,7 @@ onMounted(() => {
           @click="handleSend"
           class="w-8 h-8 bg-primary text-on-primary rounded-full flex items-center justify-center active:scale-90 transition-transform duration-200"
         >
-          <span class="material-symbols-outlined text-base filled">send</span>
+          <Send class="h-4 w-4" :stroke-width="2" />
         </button>
       </div>
     </div>

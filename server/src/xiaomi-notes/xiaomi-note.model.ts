@@ -45,6 +45,13 @@ export interface XiaomiNotePage {
   cached: boolean
 }
 
+export interface XiaomiNotesLocalCache {
+  notes: XiaomiNote[]
+  folders: XiaomiNoteFolder[]
+  syncTag?: string
+  lastSyncAt?: number
+}
+
 export interface XiaomiHistoryStorageStatus {
   available: boolean
   encryptedAtRest: boolean

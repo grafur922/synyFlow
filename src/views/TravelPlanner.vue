@@ -1,6 +1,31 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  Compass,
+  Bookmark,
+  Plus,
+  AlertCircle,
+  X,
+  Loader2,
+  Luggage,
+  ArrowLeft,
+  Download,
+  FileJson,
+  Copy,
+  Trash2,
+  CalendarX,
+  Route,
+  Ticket,
+  Wallet,
+  ListChecks,
+  Map,
+  RotateCw,
+  ExternalLink,
+  Star,
+  EyeOff,
+  MapPin
+} from 'lucide-vue-next'
 import { travelApi } from '../services/travelApi'
 import TravelAssetsPanel from '../components/travel/TravelAssetsPanel.vue'
 import type {
@@ -616,7 +641,7 @@ function privacyLabel(value: TravelPrivacy) {
     <header class="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant/25 px-5 py-4 md:px-7">
       <div>
         <div class="flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary">travel</span>
+          <Compass class="h-5 w-5 text-primary flex-shrink-0" :stroke-width="2" />
           <h2 class="font-headline text-2xl font-bold">旅行规划</h2>
         </div>
         <p class="mt-1 text-xs text-secondary">
@@ -624,18 +649,34 @@ function privacyLabel(value: TravelPrivacy) {
           <span :class="status?.encryptedAtRest ? 'text-primary' : 'text-tertiary'">{{ status?.encryptedAtRest ? '数据已加密' : '数据未加密' }}</span>
         </p>
       </div>
-      <div class="flex w-full items-center justify-end gap-2 sm:w-auto"><button type="button" class="flex h-10 items-center gap-1.5 rounded-lg border border-outline-variant/40 px-3 text-sm font-bold text-primary" @click="candidateOpen = true"><span class="material-symbols-outlined text-[19px]">bookmarks</span><span>候选</span><span v-if="inboxCandidateCount" class="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-on-primary">{{ inboxCandidateCount }}</span></button><button type="button" class="flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-bold text-on-primary disabled:opacity-40" :disabled="saving" @click="showCreate = true"><span class="material-symbols-outlined mr-1 text-[19px]">add</span>新建行程</button></div>
+      <div class="flex w-full items-center justify-end gap-2 sm:w-auto">
+        <button type="button" class="flex h-10 items-center gap-1.5 rounded-lg border border-outline-variant/40 px-3 text-sm font-bold text-primary" @click="candidateOpen = true">
+          <Bookmark class="h-4 w-4" :stroke-width="2" />
+          <span>候选</span>
+          <span v-if="inboxCandidateCount" class="rounded-full bg-primary px-1.5 py-0.5 text-[9px] text-on-primary">{{ inboxCandidateCount }}</span>
+        </button>
+        <button type="button" class="flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-bold text-on-primary disabled:opacity-40" :disabled="saving" @click="showCreate = true">
+          <Plus class="mr-1 h-4 w-4" :stroke-width="2.2" />
+          <span>新建行程</span>
+        </button>
+      </div>
     </header>
 
     <div v-if="error" role="alert" class="mx-4 mt-3 flex items-start gap-2 rounded-lg bg-error-container/60 p-3 text-sm text-on-error-container">
-      <span class="material-symbols-outlined text-[20px]">error</span><span class="min-w-0 flex-1">{{ error }}</span>
-      <button type="button" class="icon-button" aria-label="关闭错误提示" @click="error = ''"><span class="material-symbols-outlined text-[18px]">close</span></button>
+      <AlertCircle class="h-4 w-4 text-on-error-container flex-shrink-0 mt-0.5" :stroke-width="2" />
+      <span class="min-w-0 flex-1">{{ error }}</span>
+      <button type="button" class="icon-button" aria-label="关闭错误提示" @click="error = ''">
+        <X class="h-4 w-4" :stroke-width="2" />
+      </button>
     </div>
 
     <div class="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)]">
       <aside class="min-h-0 border-r border-outline-variant/25 bg-surface-container-low/45" :class="{ 'hidden md:block': selected }">
         <div class="h-full overflow-y-auto p-3">
-          <div v-if="listLoading && !trips.length" class="empty-state"><span class="material-symbols-outlined animate-spin">progress_activity</span><p>读取行程中…</p></div>
+          <div v-if="listLoading && !trips.length" class="empty-state">
+            <Loader2 class="h-5 w-5 animate-spin text-secondary" :stroke-width="2.5" />
+            <p>读取行程中…</p>
+          </div>
           <button
             v-for="trip in trips"
             :key="trip.id"
@@ -654,23 +695,38 @@ function privacyLabel(value: TravelPrivacy) {
               <span class="truncate">{{ trip.timezone }}</span>
             </div>
           </button>
-          <div v-if="!listLoading && !trips.length" class="empty-state"><span class="material-symbols-outlined text-4xl">luggage</span><p>还没有行程</p></div>
+          <div v-if="!listLoading && !trips.length" class="empty-state">
+            <Luggage class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+            <p>还没有行程</p>
+          </div>
         </div>
       </aside>
 
       <main class="h-full min-h-0 min-w-0" :class="selected ? 'block' : 'hidden md:block'">
-        <div v-if="detailLoading" class="flex h-full items-center justify-center text-secondary"><span class="material-symbols-outlined mr-2 animate-spin">progress_activity</span>加载行程中…</div>
+        <div v-if="detailLoading" class="flex h-full items-center justify-center text-secondary">
+          <Loader2 class="mr-2 h-4 w-4 animate-spin" :stroke-width="2.5" />加载行程中…
+        </div>
         <div v-else-if="selected" class="flex h-full min-h-0 flex-col">
           <div class="flex flex-shrink-0 items-center justify-between gap-2 border-b border-outline-variant/20 p-3">
-            <button type="button" class="toolbar md:hidden" aria-label="返回行程列表" @click="selected = undefined"><span class="material-symbols-outlined">arrow_back</span></button>
+            <button type="button" class="toolbar md:hidden" aria-label="返回行程列表" @click="selected = undefined">
+              <ArrowLeft class="h-4 w-4" :stroke-width="2" />
+            </button>
             <div ref="tabScroller" class="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto">
               <button v-for="item in tabs" :key="item.id" type="button" :data-travel-tab="item.id" class="whitespace-nowrap rounded-lg px-3 py-2 text-xs font-bold" :class="tab === item.id ? 'bg-primary text-on-primary' : 'text-secondary hover:bg-surface-container-high'" :aria-pressed="tab === item.id" @click="tab = item.id">{{ item.label }}</button>
             </div>
             <div class="flex flex-shrink-0 gap-1">
-              <button type="button" class="toolbar" title="导出 Markdown" aria-label="导出 Markdown" @click="exportTrip('markdown')"><span class="material-symbols-outlined">download</span></button>
-              <button type="button" class="toolbar hidden sm:flex" title="导出 JSON" aria-label="导出 JSON" @click="exportTrip('json')"><span class="material-symbols-outlined">data_object</span></button>
-              <button type="button" class="toolbar hidden sm:flex" title="复制行程" aria-label="复制行程" :disabled="saving" @click="duplicateTrip"><span class="material-symbols-outlined">content_copy</span></button>
-              <button type="button" class="toolbar text-error" title="删除行程" aria-label="删除行程" :disabled="saving" @click="deleteTrip"><span class="material-symbols-outlined">delete</span></button>
+              <button type="button" class="toolbar" title="导出 Markdown" aria-label="导出 Markdown" @click="exportTrip('markdown')">
+                <Download class="h-4 w-4" :stroke-width="2" />
+              </button>
+              <button type="button" class="toolbar hidden sm:flex" title="导出 JSON" aria-label="导出 JSON" @click="exportTrip('json')">
+                <FileJson class="h-4 w-4" :stroke-width="2" />
+              </button>
+              <button type="button" class="toolbar hidden sm:flex" title="复制行程" aria-label="复制行程" :disabled="saving" @click="duplicateTrip">
+                <Copy class="h-4 w-4" :stroke-width="2" />
+              </button>
+              <button type="button" class="toolbar text-error" title="删除行程" aria-label="删除行程" :disabled="saving" @click="deleteTrip">
+                <Trash2 class="h-4 w-4" :stroke-width="2" />
+              </button>
             </div>
           </div>
 
@@ -707,17 +763,24 @@ function privacyLabel(value: TravelPrivacy) {
                 <article v-for="day in selected.days" :key="day.id" class="panel">
                   <div class="flex items-start justify-between gap-3">
                     <h3 class="font-headline text-lg font-bold">{{ day.date }}<span v-if="day.title"> · {{ day.title }}</span></h3>
-                    <button type="button" class="icon-button text-error" title="删除当天" aria-label="删除当天" :disabled="saving" @click="removeDay(day.id)"><span class="material-symbols-outlined text-[19px]">delete</span></button>
+                    <button type="button" class="icon-button text-error" title="删除当天" aria-label="删除当天" :disabled="saving" @click="removeDay(day.id)">
+                      <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+                    </button>
                   </div>
                   <div class="mt-3 space-y-2">
                     <div v-for="place in day.places" :key="place.id" class="flex items-start gap-3 rounded-lg bg-surface-bright p-3">
                       <time class="w-12 flex-shrink-0 text-xs font-bold text-primary">{{ place.startTime || '--:--' }}</time>
                       <div class="min-w-0 flex-1"><p class="font-bold">{{ place.name }}</p><p v-if="place.address" class="mt-1 break-words text-xs text-secondary">{{ place.address }}</p></div>
-                      <button type="button" class="icon-button text-error" title="删除地点" aria-label="删除地点" :disabled="saving" @click="removePlace(day.id, place.id)"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                      <button type="button" class="icon-button text-error" title="删除地点" aria-label="删除地点" :disabled="saving" @click="removePlace(day.id, place.id)">
+                        <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+                      </button>
                     </div>
                   </div>
                 </article>
-                <div v-if="!selected.days.length" class="empty-state"><span class="material-symbols-outlined text-4xl">event_busy</span><p>还没有日程</p></div>
+                <div v-if="!selected.days.length" class="empty-state">
+                  <CalendarX class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+                  <p>还没有日程</p>
+                </div>
               </div>
               <form class="panel mt-5 grid gap-2 md:grid-cols-3" @submit.prevent="addPlace">
                 <select v-model="placeForm.dayId" required aria-label="选择日期"><option value="">选择日期</option><option v-for="day in selected.days" :key="day.id" :value="day.id">{{ day.date }}</option></select>
@@ -735,11 +798,16 @@ function privacyLabel(value: TravelPrivacy) {
             <section v-else-if="tab === 'segments'" class="mx-auto max-w-5xl">
               <div class="space-y-3">
                 <div v-for="item in selected.segments" :key="item.id" class="panel flex items-start gap-4">
-                  <span class="material-symbols-outlined text-primary">route</span>
+                  <Route class="h-5 w-5 text-primary flex-shrink-0 mt-0.5" :stroke-width="2" />
                   <div class="min-w-0 flex-1"><p class="break-words font-bold">{{ item.fromName }} → {{ item.toName }}</p><p class="mt-1 text-xs text-secondary">{{ modeLabel(item.mode) }} · {{ item.distanceKm || 0 }} km · {{ item.durationMinutes || 0 }} 分钟</p><p class="mt-1 text-[10px] text-secondary">{{ formatInstant(item.departureAt) }} → {{ formatInstant(item.arrivalAt) }}</p></div>
-                  <button type="button" class="icon-button text-error" title="删除交通段" aria-label="删除交通段" :disabled="saving" @click="removeNested('segments', item.id)"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                  <button type="button" class="icon-button text-error" title="删除交通段" aria-label="删除交通段" :disabled="saving" @click="removeNested('segments', item.id)">
+                    <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+                  </button>
                 </div>
-                <div v-if="!selected.segments.length" class="empty-state"><span class="material-symbols-outlined text-4xl">route</span><p>还没有交通段</p></div>
+                <div v-if="!selected.segments.length" class="empty-state">
+                  <Route class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+                  <p>还没有交通段</p>
+                </div>
               </div>
               <form class="panel mt-5 grid gap-2 md:grid-cols-2" @submit.prevent="addSegment">
                 <select v-model="segmentForm.fromPlaceId" aria-label="起点"><option value="">起点（手动）</option><option v-for="place in allPlaces" :key="place.id" :value="place.id">{{ place.dayDate }} · {{ place.name }}</option></select>
@@ -758,9 +826,14 @@ function privacyLabel(value: TravelPrivacy) {
               <div class="space-y-2">
                 <div v-for="item in selected.bookings" :key="item.id" class="panel flex items-start justify-between gap-3">
                   <div class="min-w-0"><p class="break-words font-bold">{{ item.title }}</p><p class="mt-1 break-words text-xs text-secondary">{{ item.type }}<span v-if="item.provider"> · {{ item.provider }}</span><span v-if="item.confirmation"> · {{ item.confirmation }}</span></p></div>
-                  <button type="button" class="icon-button text-error" title="删除预订" aria-label="删除预订" :disabled="saving" @click="removeNested('bookings', item.id)"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                  <button type="button" class="icon-button text-error" title="删除预订" aria-label="删除预订" :disabled="saving" @click="removeNested('bookings', item.id)">
+                    <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+                  </button>
                 </div>
-                <div v-if="!selected.bookings.length" class="empty-state"><span class="material-symbols-outlined text-4xl">confirmation_number</span><p>还没有预订</p></div>
+                <div v-if="!selected.bookings.length" class="empty-state">
+                  <Ticket class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+                  <p>还没有预订</p>
+                </div>
               </div>
               <form class="panel mt-5 grid gap-2 md:grid-cols-2" @submit.prevent="addBooking">
                 <select v-model="bookingForm.type" aria-label="预订类型"><option value="lodging">住宿</option><option value="transport">交通</option><option value="activity">活动</option><option value="restaurant">餐厅</option><option value="other">其他</option></select>
@@ -781,9 +854,14 @@ function privacyLabel(value: TravelPrivacy) {
               <div class="space-y-2">
                 <div v-for="item in selected.budget" :key="item.id" class="panel flex items-start justify-between gap-3">
                   <span class="min-w-0 break-words">{{ item.category }} · {{ item.currency }} {{ item.amount }} · {{ item.paid ? '已支付' : '未支付' }}</span>
-                  <button type="button" class="icon-button text-error" title="删除预算" aria-label="删除预算" :disabled="saving" @click="removeNested('budget', item.id)"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                  <button type="button" class="icon-button text-error" title="删除预算" aria-label="删除预算" :disabled="saving" @click="removeNested('budget', item.id)">
+                    <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+                  </button>
                 </div>
-                <div v-if="!selected.budget.length" class="empty-state"><span class="material-symbols-outlined text-4xl">payments</span><p>还没有预算</p></div>
+                <div v-if="!selected.budget.length" class="empty-state">
+                  <Wallet class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+                  <p>还没有预算</p>
+                </div>
               </div>
               <form class="panel mt-5 flex flex-wrap items-center gap-2" @submit.prevent="addBudget">
                 <input v-model="budgetForm.category" class="min-w-[140px] flex-1" required placeholder="分类" aria-label="分类" />
@@ -803,16 +881,24 @@ function privacyLabel(value: TravelPrivacy) {
                 <div v-for="item in selected.checklist" :key="item.id" class="panel flex items-center gap-3">
                   <input :checked="item.completed" class="h-4 w-4 flex-shrink-0" type="checkbox" :aria-label="`切换 ${item.text}`" :disabled="saving" @change="toggleChecklist(item.id)" />
                   <span class="min-w-0 flex-1 break-words" :class="{ 'line-through text-secondary': item.completed }">{{ item.text }}</span>
-                  <button type="button" class="icon-button text-error" title="删除清单事项" aria-label="删除清单事项" :disabled="saving" @click="removeNested('checklist', item.id)"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+                  <button type="button" class="icon-button text-error" title="删除清单事项" aria-label="删除清单事项" :disabled="saving" @click="removeNested('checklist', item.id)">
+                    <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+                  </button>
                 </div>
-                <div v-if="!selected.checklist.length" class="empty-state"><span class="material-symbols-outlined text-4xl">checklist</span><p>还没有清单事项</p></div>
+                <div v-if="!selected.checklist.length" class="empty-state">
+                  <ListChecks class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+                  <p>还没有清单事项</p>
+                </div>
               </div>
             </section>
 
             <TravelAssetsPanel v-else :trip="selected" :status="status" @trip-changed="applyTrip" @trip-imported="selectImportedTrip" @refresh-requested="refreshTravelAssets" />
           </div>
         </div>
-        <div v-else class="flex h-full flex-col items-center justify-center text-center text-secondary"><span class="material-symbols-outlined mb-3 text-5xl text-outline">map</span><p class="font-bold text-on-surface">选择或创建一个行程</p></div>
+        <div v-else class="flex h-full flex-col items-center justify-center text-center text-secondary">
+          <Map class="mb-3 h-12 w-12 text-outline/50" :stroke-width="1.5" />
+          <p class="font-bold text-on-surface">选择或创建一个行程</p>
+        </div>
       </main>
     </div>
 
@@ -821,31 +907,84 @@ function privacyLabel(value: TravelPrivacy) {
         <aside role="dialog" aria-modal="true" aria-labelledby="travel-candidates-title" class="flex h-full w-full max-w-5xl flex-col border-l border-outline-variant/30 bg-background shadow-2xl">
           <header class="flex flex-wrap items-start justify-between gap-3 border-b border-outline-variant/25 px-4 py-3 sm:items-center md:px-5">
             <div class="min-w-0 flex-1"><h3 id="travel-candidates-title" class="font-headline text-xl font-bold">旅行候选</h3><p class="mt-1 text-xs text-secondary">{{ candidates.length }} 条候选</p></div>
-            <div class="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap"><select v-model="candidateImportPrivacy" aria-label="收藏导入隐私范围" class="h-9 min-w-0 flex-1 rounded-lg border-outline-variant/30 bg-surface-bright py-1 pl-3 pr-8 text-xs font-bold sm:flex-none"><option value="private">导入公开与私人</option><option value="secret">导入全部（含机密）</option></select><button type="button" class="flex h-9 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-3 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="candidateImporting" @click="importCandidates"><span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': candidateImporting }">sync</span>{{ candidateImporting ? '导入中…' : '导入收藏' }}</button><button type="button" class="toolbar flex-shrink-0" aria-label="关闭候选" @click="candidateOpen = false"><span class="material-symbols-outlined">close</span></button></div>
+            <div class="flex w-full min-w-0 flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
+              <select v-model="candidateImportPrivacy" aria-label="收藏导入隐私范围" class="h-9 min-w-0 flex-1 rounded-lg border-outline-variant/30 bg-surface-bright py-1 pl-3 pr-8 text-xs font-bold sm:flex-none"><option value="private">导入公开与私人</option><option value="secret">导入全部（含机密）</option></select>
+              <button type="button" class="flex h-9 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-primary px-3 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="candidateImporting" @click="importCandidates">
+                <RotateCw class="h-4.5 w-4.5" :class="{ 'animate-spin': candidateImporting }" :stroke-width="2" />
+                <span>{{ candidateImporting ? '导入中…' : '导入收藏' }}</span>
+              </button>
+              <button type="button" class="toolbar flex-shrink-0" aria-label="关闭候选" @click="candidateOpen = false">
+                <X class="h-5 w-5" :stroke-width="2" />
+              </button>
+            </div>
           </header>
-          <div v-if="candidateNotice" class="flex items-center justify-between gap-3 border-b border-outline-variant/20 bg-primary-container/20 px-4 py-2 text-xs font-bold text-primary md:px-5"><span class="min-w-0 break-words">{{ candidateNotice }}</span><button type="button" class="icon-button flex-shrink-0" aria-label="关闭通知" @click="candidateNotice = ''"><span class="material-symbols-outlined text-[16px]">close</span></button></div>
-          <div v-if="error" class="flex items-start gap-2 border-b border-error/20 bg-error-container/55 px-5 py-2.5 text-xs text-on-error-container"><span class="material-symbols-outlined text-[18px]">error</span><span class="min-w-0 flex-1">{{ error }}</span><button type="button" class="icon-button" aria-label="关闭错误" @click="error = ''"><span class="material-symbols-outlined text-[16px]">close</span></button></div>
+          <div v-if="candidateNotice" class="flex items-center justify-between gap-3 border-b border-outline-variant/20 bg-primary-container/20 px-4 py-2 text-xs font-bold text-primary md:px-5">
+            <span class="min-w-0 break-words">{{ candidateNotice }}</span>
+            <button type="button" class="icon-button flex-shrink-0" aria-label="关闭通知" @click="candidateNotice = ''">
+              <X class="h-4 w-4" :stroke-width="2" />
+            </button>
+          </div>
+          <div v-if="error" class="flex items-start gap-2 border-b border-error/20 bg-error-container/55 px-5 py-2.5 text-xs text-on-error-container">
+            <AlertCircle class="h-4.5 w-4.5 text-on-error-container flex-shrink-0" :stroke-width="2" />
+            <span class="min-w-0 flex-1">{{ error }}</span>
+            <button type="button" class="icon-button" aria-label="关闭错误" @click="error = ''">
+              <X class="h-4 w-4" :stroke-width="2" />
+            </button>
+          </div>
           <div class="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[310px_minmax(0,1fr)]">
             <section class="min-h-0 border-r border-outline-variant/25 bg-surface-container-low/45" :class="{ 'hidden md:block': selectedCandidate }">
               <div class="grid grid-cols-3 gap-1 border-b border-outline-variant/20 p-2"><button v-for="item in [{id:'active',label:'待处理'},{id:'added',label:'已加入'},{id:'dismissed',label:'已忽略'}]" :key="item.id" type="button" class="rounded-lg px-2 py-2 text-[11px] font-bold" :class="candidateScope === item.id ? 'bg-primary text-on-primary' : 'text-secondary hover:bg-surface-container-high'" @click="candidateScope = item.id as typeof candidateScope">{{ item.label }}</button></div>
               <div class="h-[calc(100%-3.25rem)] overflow-y-auto p-2">
-                <div v-if="candidateLoading" class="empty-state"><span class="material-symbols-outlined animate-spin">progress_activity</span><p>读取候选中…</p></div>
+                <div v-if="candidateLoading" class="empty-state">
+                  <Loader2 class="h-5 w-5 animate-spin text-secondary" :stroke-width="2.5" />
+                  <p>读取候选中…</p>
+                </div>
                 <button v-for="candidate in visibleCandidates" v-else :key="candidate.id" type="button" class="mb-2 w-full rounded-lg border p-3 text-left" :class="selectedCandidate?.id === candidate.id ? 'border-primary/40 bg-primary-container text-on-primary-container' : 'border-transparent bg-surface-bright hover:border-outline-variant/40'" @click="openCandidate(candidate)"><div class="flex items-start justify-between gap-2"><span class="rounded-full px-2 py-0.5 text-[9px] font-bold" :class="candidate.source === 'xiaomi' ? 'bg-primary-container/30 text-primary' : 'bg-secondary-container text-on-secondary-container'">{{ candidate.source === 'xiaomi' ? '小米笔记' : 'RSS' }}</span><span class="text-[9px] font-bold" :class="candidate.privacy === 'secret' ? 'text-error' : 'opacity-65'">{{ privacyLabel(candidate.privacy) }}</span></div><h4 class="mt-2 line-clamp-2 text-sm font-bold">{{ candidate.title }}</h4><p class="mt-1 line-clamp-2 text-xs opacity-70">{{ candidate.summary || '无摘要' }}</p><div class="mt-2 flex items-center justify-between gap-2 text-[10px] opacity-65"><span class="truncate">{{ candidate.placeName }}</span><span>{{ candidateStatusLabel(candidate.status) }}</span></div></button>
-                <div v-if="!candidateLoading && !visibleCandidates.length" class="empty-state"><span class="material-symbols-outlined text-4xl">bookmark_border</span><p>当前列表为空</p></div>
+                <div v-if="!candidateLoading && !visibleCandidates.length" class="empty-state">
+                  <Bookmark class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+                  <p>当前列表为空</p>
+                </div>
               </div>
             </section>
 
             <section class="min-h-0" :class="selectedCandidate ? 'block' : 'hidden md:block'">
               <div v-if="selectedCandidate" class="flex h-full min-h-0 flex-col">
-                <div class="flex items-center justify-between gap-2 border-b border-outline-variant/20 px-4 py-2"><button type="button" class="toolbar md:hidden" aria-label="返回候选列表" @click="selectedCandidate = undefined"><span class="material-symbols-outlined">arrow_back</span></button><div class="min-w-0 flex-1"><p class="truncate text-xs font-bold text-secondary">{{ selectedCandidate.source === 'xiaomi' ? '小米笔记收藏' : 'RSS 收藏' }} · {{ candidateStatusLabel(selectedCandidate.status) }} · {{ privacyLabel(selectedCandidate.privacy) }}</p></div><button type="button" class="toolbar" title="打开来源" aria-label="打开来源" @click="openCandidateSource(selectedCandidate)"><span class="material-symbols-outlined">open_in_new</span></button><button type="button" class="toolbar text-error" title="删除候选卡" aria-label="删除候选卡" :disabled="candidateSaving" @click="deleteCandidate"><span class="material-symbols-outlined">delete</span></button></div>
+                <div class="flex items-center justify-between gap-2 border-b border-outline-variant/20 px-4 py-2">
+                  <button type="button" class="toolbar md:hidden" aria-label="返回候选列表" @click="selectedCandidate = undefined">
+                    <ArrowLeft class="h-5 w-5" :stroke-width="2" />
+                  </button>
+                  <div class="min-w-0 flex-1"><p class="truncate text-xs font-bold text-secondary">{{ selectedCandidate.source === 'xiaomi' ? '小米笔记收藏' : 'RSS 收藏' }} · {{ candidateStatusLabel(selectedCandidate.status) }} · {{ privacyLabel(selectedCandidate.privacy) }}</p></div>
+                  <button type="button" class="toolbar" title="打开来源" aria-label="打开来源" @click="openCandidateSource(selectedCandidate)">
+                    <ExternalLink class="h-4.5 w-4.5" :stroke-width="2" />
+                  </button>
+                  <button type="button" class="toolbar text-error" title="删除候选卡" aria-label="删除候选卡" :disabled="candidateSaving" @click="deleteCandidate">
+                    <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+                  </button>
+                </div>
                 <div class="min-h-0 flex-1 overflow-y-auto p-5 md:p-6">
                   <div class="grid gap-3 md:grid-cols-2"><label class="field md:col-span-2">候选标题<input v-model="candidateForm.title" maxlength="300" /></label><label class="field md:col-span-2">攻略摘要<textarea v-model="candidateForm.summary" maxlength="2000" rows="3"></textarea></label><label class="field">地点名称<input v-model="candidateForm.placeName" maxlength="300" /></label><label class="field">地址<input v-model="candidateForm.address" maxlength="500" /></label><label class="field">纬度<input v-model="candidateForm.latitude" type="number" min="-90" max="90" step="any" /></label><label class="field">经度<input v-model="candidateForm.longitude" type="number" min="-180" max="180" step="any" /></label><label class="field md:col-span-2">标签<input v-model="candidateForm.tags" placeholder="逗号分隔" /></label><label class="field md:col-span-2">行程备注<textarea v-model="candidateForm.notes" maxlength="10000" rows="3"></textarea></label></div>
-                  <div class="mt-5 flex flex-wrap items-center gap-2"><button type="button" class="rounded-lg border border-outline-variant/40 px-3 py-2 text-xs font-bold text-primary disabled:opacity-40" :disabled="candidateSaving" @click="saveCandidate()">{{ candidateSaving ? '保存中…' : '保存候选' }}</button><button v-if="selectedCandidate.status !== 'added'" type="button" class="toolbar" :class="selectedCandidate.status === 'saved' ? 'text-tertiary' : ''" title="保留候选" aria-label="保留候选" :disabled="candidateSaving" @click="saveCandidate('saved')"><span class="material-symbols-outlined" :class="{ filled: selectedCandidate.status === 'saved' }">star</span></button><button v-if="selectedCandidate.status !== 'added'" type="button" class="toolbar" title="忽略候选" aria-label="忽略候选" :disabled="candidateSaving" @click="saveCandidate('dismissed')"><span class="material-symbols-outlined">visibility_off</span></button></div>
+                  <div class="mt-5 flex flex-wrap items-center gap-2">
+                    <button type="button" class="rounded-lg border border-outline-variant/40 px-3 py-2 text-xs font-bold text-primary disabled:opacity-40" :disabled="candidateSaving" @click="saveCandidate()">{{ candidateSaving ? '保存中…' : '保存候选' }}</button>
+                    <button v-if="selectedCandidate.status !== 'added'" type="button" class="toolbar" :class="selectedCandidate.status === 'saved' ? 'text-tertiary' : ''" title="保留候选" aria-label="保留候选" :disabled="candidateSaving" @click="saveCandidate('saved')">
+                      <Star class="h-4.5 w-4.5" :class="{ 'fill-amber-500 text-amber-500': selectedCandidate.status === 'saved' }" :stroke-width="2" />
+                    </button>
+                    <button v-if="selectedCandidate.status !== 'added'" type="button" class="toolbar" title="忽略候选" aria-label="忽略候选" :disabled="candidateSaving" @click="saveCandidate('dismissed')">
+                      <EyeOff class="h-4.5 w-4.5" :stroke-width="2" />
+                    </button>
+                  </div>
 
-                  <div class="mt-7 border-t border-outline-variant/25 pt-5"><h4 class="text-sm font-bold text-on-surface">加入行程</h4><div class="mt-3 grid gap-2 md:grid-cols-2"><select :value="candidateTargetTripId" aria-label="目标行程" :disabled="selectedCandidate.status === 'added'" @change="loadCandidateTargetTrip(($event.target as HTMLSelectElement).value)"><option value="">选择行程</option><option v-for="trip in trips.filter((item) => item.status !== 'archived')" :key="trip.id" :value="trip.id">{{ trip.title }} · {{ privacyLabel(trip.privacy) }}</option></select><select v-model="candidateTargetDayId" aria-label="目标日期" :disabled="selectedCandidate.status === 'added' || !candidateTargetTrip"><option value="">选择日期</option><option v-for="day in candidateTargetTrip?.days || []" :key="day.id" :value="day.id">{{ day.date }}{{ day.title ? ` · ${day.title}` : '' }}</option></select></div><p v-if="candidateTargetTrip && !candidateTargetTrip.days.length" class="mt-2 text-xs text-tertiary">该行程还没有日期，请先在日程中添加一天。</p><button type="button" class="mt-3 flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="candidateSaving || selectedCandidate.status === 'added' || !candidateTargetTripId || !candidateTargetDayId" @click="addCandidateToTrip"><span class="material-symbols-outlined text-[18px]">add_location_alt</span>{{ selectedCandidate.status === 'added' ? '已加入行程' : '加入所选日期' }}</button></div>
+                  <div class="mt-7 border-t border-outline-variant/25 pt-5"><h4 class="text-sm font-bold text-on-surface">加入行程</h4><div class="mt-3 grid gap-2 md:grid-cols-2"><select :value="candidateTargetTripId" aria-label="目标行程" :disabled="selectedCandidate.status === 'added'" @change="loadCandidateTargetTrip(($event.target as HTMLSelectElement).value)"><option value="">选择行程</option><option v-for="trip in trips.filter((item) => item.status !== 'archived')" :key="trip.id" :value="trip.id">{{ trip.title }} · {{ privacyLabel(trip.privacy) }}</option></select><select v-model="candidateTargetDayId" aria-label="目标日期" :disabled="selectedCandidate.status === 'added' || !candidateTargetTrip"><option value="">选择日期</option><option v-for="day in candidateTargetTrip?.days || []" :key="day.id" :value="day.id">{{ day.date }}{{ day.title ? ` · ${day.title}` : '' }}</option></select></div><p v-if="candidateTargetTrip && !candidateTargetTrip.days.length" class="mt-2 text-xs text-tertiary">该行程还没有日期，请先在日程中添加一天。</p>
+                    <button type="button" class="mt-3 flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="candidateSaving || selectedCandidate.status === 'added' || !candidateTargetTripId || !candidateTargetDayId" @click="addCandidateToTrip">
+                      <MapPin class="h-4.5 w-4.5" :stroke-width="2" />
+                      <span>{{ selectedCandidate.status === 'added' ? '已加入行程' : '加入所选日期' }}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div v-else class="empty-state h-full"><span class="material-symbols-outlined text-5xl">bookmarks</span><p>选择一条旅行候选</p></div>
+              <div v-else class="empty-state h-full">
+                <Bookmark class="h-12 w-12 text-outline/50" :stroke-width="1.5" />
+                <p>选择一条旅行候选</p>
+              </div>
             </section>
           </div>
         </aside>
@@ -855,7 +994,12 @@ function privacyLabel(value: TravelPrivacy) {
     <Teleport to="body">
       <div v-if="showCreate" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/25 p-4" @click.self="showCreate = false">
         <form role="dialog" aria-modal="true" aria-labelledby="travel-create-title" class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg bg-background p-6 shadow-2xl" @submit.prevent="createTrip">
-          <div class="flex items-center justify-between gap-3"><h3 id="travel-create-title" class="font-headline text-xl font-bold">新建行程</h3><button type="button" class="toolbar" aria-label="关闭" @click="showCreate = false"><span class="material-symbols-outlined">close</span></button></div>
+          <div class="flex items-center justify-between gap-3">
+            <h3 id="travel-create-title" class="font-headline text-xl font-bold">新建行程</h3>
+            <button type="button" class="toolbar" aria-label="关闭" @click="showCreate = false">
+              <X class="h-5 w-5" :stroke-width="2" />
+            </button>
+          </div>
           <div class="mt-4 grid gap-3 md:grid-cols-2">
             <label class="field md:col-span-2">名称<input v-model="createForm.title" required maxlength="300" /></label>
             <label class="field">开始<input v-model="createForm.startDate" required type="date" /></label>

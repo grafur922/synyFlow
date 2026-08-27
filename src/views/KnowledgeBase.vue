@@ -1,6 +1,26 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute } from 'vue-router'
+import {
+  Library,
+  SlidersHorizontal,
+  Search,
+  RefreshCw,
+  Plus,
+  AlertCircle,
+  X,
+  NotebookTabs,
+  Database,
+  Loader2,
+  Archive,
+  ArrowLeft,
+  Trash2,
+  ArrowRight,
+  SearchCheck,
+  ShieldAlert,
+  ShieldCheck,
+  Upload
+} from 'lucide-vue-next'
 import { ragApi } from '../services/ragApi'
 import type {
   RagCitation,
@@ -465,30 +485,55 @@ function formatDate(value: number) {
   <div class="flex h-full min-h-0 flex-col bg-background">
     <header class="flex flex-shrink-0 flex-wrap items-center justify-between gap-3 border-b border-outline-variant/25 px-5 py-4 md:px-7">
       <div>
-        <div class="flex items-center gap-2"><span class="material-symbols-outlined text-primary">library_books</span><h2 class="font-headline text-2xl font-bold">知识库</h2></div>
+        <div class="flex items-center gap-2">
+          <Library class="h-5 w-5 text-primary flex-shrink-0" :stroke-width="2" />
+          <h2 class="font-headline text-2xl font-bold">知识库</h2>
+        </div>
         <p class="mt-1 text-xs text-secondary">{{ status?.documentCount || 0 }} 个文档 · {{ status?.chunkCount || 0 }} 个片段 · <span :class="status?.encryptedAtRest ? 'text-primary' : 'text-tertiary'">{{ status?.encryptedAtRest ? '数据已加密' : '数据未加密' }}</span></p>
       </div>
       <div class="flex items-center gap-2">
-        <RouterLink to="/settings" class="header-action border border-outline-variant/40 text-secondary" title="知识库设置"><span class="material-symbols-outlined text-[19px]">tune</span><span class="hidden sm:inline">设置</span></RouterLink>
-        <button type="button" class="header-action border border-outline-variant/40 text-primary md:hidden" @click="openQueryWorkspace"><span class="material-symbols-outlined text-[19px]">search</span>检索</button>
-        <button type="button" class="header-action border border-outline-variant/40 text-primary" :disabled="reindexing" title="重建全部索引" @click="reindexAll"><span class="material-symbols-outlined text-[19px]" :class="{ 'animate-spin': reindexing }">sync</span><span class="hidden sm:inline">重建</span></button>
-        <button type="button" class="header-action bg-primary text-on-primary" @click="showCreate = true"><span class="material-symbols-outlined text-[19px]">note_add</span>接入文档</button>
+        <RouterLink to="/settings" class="header-action border border-outline-variant/40 text-secondary" title="知识库设置">
+          <SlidersHorizontal class="h-4 w-4" :stroke-width="2" />
+          <span class="hidden sm:inline">设置</span>
+        </RouterLink>
+        <button type="button" class="header-action border border-outline-variant/40 text-primary md:hidden" @click="openQueryWorkspace">
+          <Search class="h-4 w-4" :stroke-width="2" />
+          <span>检索</span>
+        </button>
+        <button type="button" class="header-action border border-outline-variant/40 text-primary" :disabled="reindexing" title="重建全部索引" @click="reindexAll">
+          <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': reindexing }" :stroke-width="2" />
+          <span class="hidden sm:inline">重建</span>
+        </button>
+        <button type="button" class="header-action bg-primary text-on-primary" @click="showCreate = true">
+          <Plus class="h-4 w-4" :stroke-width="2.2" />
+          <span>接入文档</span>
+        </button>
       </div>
     </header>
 
-    <div v-if="error" role="alert" class="mx-4 mt-3 flex items-start gap-2 rounded-lg bg-error-container/60 p-3 text-sm text-on-error-container"><span class="material-symbols-outlined text-[20px]">error</span><span class="min-w-0 flex-1">{{ error }}</span><button type="button" class="icon-button" aria-label="关闭错误提示" @click="error = ''"><span class="material-symbols-outlined text-[18px]">close</span></button></div>
+    <div v-if="error" role="alert" class="mx-4 mt-3 flex items-start gap-2 rounded-lg bg-error-container/60 p-3 text-sm text-on-error-container">
+      <AlertCircle class="h-4 w-4 text-on-error-container flex-shrink-0 mt-0.5" :stroke-width="2" />
+      <span class="min-w-0 flex-1">{{ error }}</span>
+      <button type="button" class="icon-button" aria-label="关闭错误提示" @click="error = ''">
+        <X class="h-4 w-4" :stroke-width="2" />
+      </button>
+    </div>
     <div v-if="status?.resourceSyncError" class="mx-4 mt-3 rounded-lg bg-tertiary-container/50 p-3 text-xs text-on-tertiary-container">Resource 索引同步失败：{{ status.resourceSyncError }}</div>
 
     <section class="mx-4 mt-3 grid flex-shrink-0 gap-2 md:grid-cols-2">
       <div class="sync-card">
-        <span class="sync-icon material-symbols-outlined">note_stack</span>
+        <span class="sync-icon">
+          <NotebookTabs class="h-4 w-4" :stroke-width="2" />
+        </span>
         <div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><strong class="text-xs">小米笔记增量同步</strong><span class="status-chip">{{ xiaomiSync?.state || 'idle' }}</span></div><p class="mt-1 truncate text-[10px] text-secondary">{{ xiaomiSync?.error || (xiaomiSync?.lastSuccessAt ? `最近成功 ${formatDate(xiaomiSync.lastSuccessAt)}` : '尚未完成同步') }} · 活跃 {{ xiaomiSync?.ledger.active || 0 }} · 失败 {{ xiaomiSync?.ledger.failed || 0 }}</p></div>
         <button v-if="xiaomiSyncActive" type="button" class="mini-action text-error" @click="cancelXiaomiSync">取消</button>
         <button v-else-if="xiaomiSync?.state === 'failed' || xiaomiSync?.ledger.failed" type="button" class="mini-action text-tertiary" :disabled="syncingXiaomi" @click="syncXiaomiNotes(true)">重试</button>
         <button v-else type="button" class="mini-action text-primary" :disabled="syncingXiaomi" @click="syncXiaomiNotes(false)">{{ syncingXiaomi ? '请求中' : '同步' }}</button>
       </div>
       <div class="sync-card">
-        <span class="sync-icon material-symbols-outlined">database</span>
+        <span class="sync-icon">
+          <Database class="h-4 w-4" :stroke-width="2" />
+        </span>
         <div class="min-w-0 flex-1"><div class="flex flex-wrap items-center gap-2"><strong class="text-xs">语义向量索引</strong><span class="status-chip">{{ vectorCoveragePercent }}%</span></div><p class="mt-1 truncate text-[10px] text-secondary">就绪 {{ vectorIndex?.coverage.ready || status?.vectorCoverage.ready || 0 }} · 待处理 {{ vectorIndex?.coverage.pending || status?.vectorCoverage.pending || 0 }} · 本地专用 {{ vectorIndex?.coverage.localOnly || status?.vectorCoverage.localOnly || 0 }} · {{ vectorIndex?.store.message || status?.vectorStore.message }}</p></div>
         <button type="button" class="mini-action text-primary" :disabled="rebuildingVectors || !status?.denseEmbedding.configured" @click="rebuildVectorIndex">{{ rebuildingVectors ? '重建中' : '重建向量' }}</button>
       </div>
@@ -497,15 +542,26 @@ function formatDate(value: number) {
     <div class="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)]">
       <aside class="min-h-0 border-r border-outline-variant/25 bg-surface-container-low/45" :class="{ 'hidden md:block': selected || mobileWorkspace }">
         <div class="flex h-full min-h-0 flex-col">
-          <div class="p-3"><label class="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-bright px-3 py-2 focus-within:ring-2 focus-within:ring-primary"><span class="material-symbols-outlined text-[19px] text-secondary">search</span><input v-model="filter" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm focus:ring-0" placeholder="筛选文档" /></label></div>
+          <div class="p-3">
+            <label class="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-bright px-3 py-2 focus-within:ring-2 focus-within:ring-primary">
+              <Search class="h-4 w-4 text-secondary flex-shrink-0" :stroke-width="2" />
+              <input v-model="filter" class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm focus:ring-0" placeholder="筛选文档" />
+            </label>
+          </div>
           <div class="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-            <div v-if="loading && !documents.length" class="empty-state"><span class="material-symbols-outlined animate-spin">progress_activity</span><p>读取知识库中…</p></div>
+            <div v-if="loading && !documents.length" class="empty-state">
+              <Loader2 class="h-6 w-6 animate-spin text-secondary" :stroke-width="2.5" />
+              <p>读取知识库中…</p>
+            </div>
             <button v-for="document in filteredDocuments" :key="document.id" type="button" class="mb-2 w-full rounded-lg border p-4 text-left transition" :class="selected?.id === document.id ? 'border-primary/40 bg-primary-container text-on-primary-container' : 'border-transparent bg-surface-bright hover:border-outline-variant/40'" @click="selectDocument(document)">
               <div class="flex items-start justify-between gap-2"><h3 class="line-clamp-2 min-w-0 text-sm font-bold">{{ document.title }}</h3><span class="flex-shrink-0 text-[9px] font-bold">{{ privacyLabel(document.privacy) }}</span></div>
               <p class="mt-2 line-clamp-2 text-xs leading-5 opacity-70">{{ document.summary }}</p>
               <div class="mt-3 flex items-center justify-between gap-2 text-[10px] opacity-65"><span>{{ document.chunkCount }} 片段 · {{ sourceLabel(document.source) }}<span v-if="document.vectorState"> · {{ document.vectorState }}</span></span><span v-if="document.highSensitiveFindingCount || document.highInjectionFindingCount" class="font-bold text-error">风险 {{ document.highSensitiveFindingCount + document.highInjectionFindingCount }}</span></div>
             </button>
-            <div v-if="!loading && !filteredDocuments.length" class="empty-state"><span class="material-symbols-outlined text-4xl">inventory_2</span><p>{{ filter ? '没有匹配文档' : '还没有知识文档' }}</p></div>
+            <div v-if="!loading && !filteredDocuments.length" class="empty-state">
+              <Archive class="h-10 w-10 text-outline/50" :stroke-width="1.5" />
+              <p>{{ filter ? '没有匹配文档' : '还没有知识文档' }}</p>
+            </div>
           </div>
         </div>
       </aside>
@@ -513,24 +569,40 @@ function formatDate(value: number) {
       <main class="h-full min-h-0 min-w-0" :class="selected || mobileWorkspace ? 'block' : 'hidden md:block'">
         <div class="flex h-full min-h-0 flex-col">
           <div class="flex flex-shrink-0 items-center justify-between gap-2 border-b border-outline-variant/20 p-3">
-            <button type="button" class="tool-button md:hidden" aria-label="返回文档列表" @click="closeMobileWorkspace"><span class="material-symbols-outlined">arrow_back</span></button>
+            <button type="button" class="tool-button md:hidden" aria-label="返回文档列表" @click="closeMobileWorkspace">
+              <ArrowLeft class="h-5 w-5" :stroke-width="2" />
+            </button>
             <div class="flex min-w-0 flex-1 gap-1">
               <button type="button" class="workspace-tab" :class="workspaceTab === 'query' ? 'bg-primary text-on-primary' : 'text-secondary hover:bg-surface-container-high'" @click="workspaceTab = 'query'">检索</button>
               <button type="button" class="workspace-tab" :class="workspaceTab === 'document' ? 'bg-primary text-on-primary' : 'text-secondary hover:bg-surface-container-high'" :disabled="!canShowDocument" @click="workspaceTab = 'document'">文档</button>
             </div>
             <div v-if="workspaceTab === 'document' && selected" class="flex flex-shrink-0 items-center gap-1">
-              <button type="button" class="tool-button" title="重建当前文档索引" aria-label="重建当前文档索引" :disabled="reindexing" @click="reindexDocument"><span class="material-symbols-outlined" :class="{ 'animate-spin': reindexing }">refresh</span></button>
-              <button v-if="!selected.sourceManaged" type="button" class="tool-button text-error" title="删除文档" aria-label="删除文档" @click="deleteDocument"><span class="material-symbols-outlined">delete</span></button>
+              <button type="button" class="tool-button" title="重建当前文档索引" aria-label="重建当前文档索引" :disabled="reindexing" @click="reindexDocument">
+                <RefreshCw class="h-4.5 w-4.5" :class="{ 'animate-spin': reindexing }" :stroke-width="2" />
+              </button>
+              <button v-if="!selected.sourceManaged" type="button" class="tool-button text-error" title="删除文档" aria-label="删除文档" @click="deleteDocument">
+                <Trash2 class="h-4.5 w-4.5" :stroke-width="1.85" />
+              </button>
               <button type="button" class="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="!isDirty || saving" @click="saveDocument">{{ saving ? '保存中…' : '保存' }}</button>
             </div>
           </div>
 
-          <div v-if="loading" class="flex min-h-0 flex-1 items-center justify-center text-secondary"><span class="material-symbols-outlined mr-2 animate-spin">progress_activity</span>读取文档中…</div>
+          <div v-if="loading" class="flex min-h-0 flex-1 items-center justify-center text-secondary">
+            <Loader2 class="mr-2 h-5 w-5 animate-spin" :stroke-width="2.5" />读取文档中…
+          </div>
 
           <div v-else-if="workspaceTab === 'query'" class="min-h-0 flex-1 overflow-y-auto">
             <form class="border-b border-outline-variant/20 bg-surface-container-low/35 px-5 py-5 md:px-7" @submit.prevent="runQuery">
               <div class="mx-auto max-w-6xl">
-                <label class="flex items-start gap-3 rounded-lg border border-outline-variant/35 bg-surface-bright px-4 py-3 focus-within:ring-2 focus-within:ring-primary"><span class="material-symbols-outlined mt-0.5 text-primary">search</span><textarea v-model="queryForm.query" class="min-h-14 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 focus:ring-0" maxlength="500" rows="2" placeholder="输入要从知识库检索的问题"></textarea><button class="flex h-10 items-center gap-1 rounded-lg bg-primary px-4 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="querying || !queryForm.query.trim() || queryForm.provider === 'external' && !queryForm.externalConsent"><span class="material-symbols-outlined text-[18px]" :class="{ 'animate-spin': querying }">{{ querying ? 'progress_activity' : 'arrow_forward' }}</span><span class="hidden sm:inline">检索</span></button></label>
+                <label class="flex items-start gap-3 rounded-lg border border-outline-variant/35 bg-surface-bright px-4 py-3 focus-within:ring-2 focus-within:ring-primary">
+                  <Search class="mt-0.5 h-5 w-5 text-primary flex-shrink-0" :stroke-width="2" />
+                  <textarea v-model="queryForm.query" class="min-h-14 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 focus:ring-0" maxlength="500" rows="2" placeholder="输入要从知识库检索的问题"></textarea>
+                  <button class="flex h-10 items-center gap-1 rounded-lg bg-primary px-4 text-xs font-bold text-on-primary disabled:opacity-40" :disabled="querying || !queryForm.query.trim() || queryForm.provider === 'external' && !queryForm.externalConsent">
+                    <Loader2 v-if="querying" class="h-4.5 w-4.5 animate-spin" :stroke-width="2.5" />
+                    <ArrowRight v-else class="h-4.5 w-4.5" :stroke-width="2" />
+                    <span class="hidden sm:inline">检索</span>
+                  </button>
+                </label>
                 <div class="mt-3 flex flex-wrap items-center gap-3">
                   <div class="segmented" aria-label="检索提供方"><button type="button" :class="queryForm.provider === 'local' ? 'bg-primary text-on-primary' : 'text-secondary'" @click="selectQueryProvider('local')">本地</button><button type="button" :disabled="!externalAvailable" :title="status?.externalProvider.message" :class="queryForm.provider === 'external' ? 'bg-primary text-on-primary' : 'text-secondary'" @click="selectQueryProvider('external')">外部</button></div>
                   <div class="segmented" aria-label="最大隐私范围"><button v-for="option in privacyOptions" :key="option.value" type="button" :disabled="queryForm.provider === 'external' && option.value === 'secret'" :class="queryForm.maxPrivacy === option.value ? 'bg-primary text-on-primary' : 'text-secondary'" @click="queryForm.maxPrivacy = option.value">{{ option.label }}</button></div>
@@ -544,7 +616,10 @@ function formatDate(value: number) {
 
             <div class="mx-auto grid max-w-6xl gap-8 px-5 py-7 md:grid-cols-[minmax(0,1fr)_320px] md:px-7">
               <section class="min-w-0">
-                <div v-if="querying" class="empty-state min-h-72"><span class="material-symbols-outlined animate-spin text-3xl">progress_activity</span><p>检索与排序中…</p></div>
+                <div v-if="querying" class="empty-state min-h-72">
+                  <Loader2 class="h-8 w-8 animate-spin text-primary" :stroke-width="2.5" />
+                  <p>检索与排序中…</p>
+                </div>
                 <template v-else-if="queryResult">
                   <div class="flex flex-wrap items-center gap-2 text-xs font-bold"><span class="rounded-lg bg-primary-container px-2 py-1 text-on-primary-container">置信度 {{ confidenceLabel(queryResult.confidence) }}</span><span class="text-secondary">{{ queryResult.citations.length }} 条引用</span><span class="rounded-lg bg-surface-container-high px-2 py-1 text-secondary">{{ queryResult.retrieval?.mode === 'hybrid' ? '混合检索' : '本地检索' }}</span><span v-if="queryResult.retrieval?.reason" class="text-tertiary">{{ queryResult.retrieval.reason }}</span><span v-if="queryResult.excluded.privacy" class="text-secondary">隐私排除 {{ queryResult.excluded.privacy }}</span><span v-if="queryResult.excluded.flagged" class="text-tertiary">隔离 {{ queryResult.excluded.flagged }}</span><span v-if="queryResult.excluded.sensitive" class="text-error">敏感排除 {{ queryResult.excluded.sensitive }}</span></div>
                   <h3 class="mt-5 font-headline text-xl font-bold">检索结果</h3>
@@ -552,7 +627,10 @@ function formatDate(value: number) {
                   <div v-if="queryResult.queryWarnings.length" class="mt-6 border-l-2 border-error pl-4"><p class="text-xs font-bold text-error">查询中检测到指令覆盖特征</p><p v-for="warning in queryResult.queryWarnings" :key="warning.id" class="mt-1 text-xs text-secondary">{{ warning.message }}</p></div>
                   <p class="mt-8 text-[10px] text-secondary">{{ queryResult.provider.answer }} · {{ queryResult.provider.externalRequests ? '外部' : '本地' }} · {{ formatDate(queryResult.generatedAt) }}</p>
                 </template>
-                <div v-else class="empty-state min-h-72"><span class="material-symbols-outlined text-5xl text-outline">manage_search</span><h3 class="font-headline text-lg font-bold text-on-surface">等待检索</h3></div>
+                <div v-else class="empty-state min-h-72">
+                  <SearchCheck class="h-12 w-12 text-outline/50" :stroke-width="1.5" />
+                  <h3 class="font-headline text-lg font-bold text-on-surface">等待检索</h3>
+                </div>
               </section>
 
               <aside class="min-w-0 md:border-l md:border-outline-variant/30 md:pl-6">
@@ -581,18 +659,33 @@ function formatDate(value: number) {
               <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-secondary"><span>{{ selected.chunkCount }} 个片段</span><span>{{ editForm.content.length.toLocaleString() }} 字符</span><span>{{ sourceLabel(selected.source) }}</span><span v-if="selected.vectorState">向量 {{ selected.vectorState }}</span><span>索引于 {{ formatDate(selected.indexedAt) }}</span><span v-if="isDirty" class="font-bold text-tertiary">未保存</span></div>
 
               <section v-if="selected.sensitiveFindings.length" class="mt-8 border-t border-outline-variant/30 pt-6">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="font-headline text-base font-bold">敏感信息检测</h3><p class="mt-1 text-xs text-secondary">{{ selected.sensitiveFindings.length }} 项，其中高风险 {{ selectedHighSensitive.length }} 项</p></div><span class="material-symbols-outlined" :class="selectedHighSensitive.length ? 'text-error' : 'text-tertiary'">shield_lock</span></div>
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 class="font-headline text-base font-bold">敏感信息检测</h3>
+                    <p class="mt-1 text-xs text-secondary">{{ selected.sensitiveFindings.length }} 项，其中高风险 {{ selectedHighSensitive.length }} 项</p>
+                  </div>
+                  <ShieldAlert class="h-5 w-5 flex-shrink-0" :class="selectedHighSensitive.length ? 'text-error' : 'text-tertiary'" :stroke-width="2" />
+                </div>
                 <div class="mt-4 divide-y divide-outline-variant/20"><div v-for="finding in selected.sensitiveFindings" :key="finding.id" class="flex items-start justify-between gap-4 py-3"><div class="min-w-0"><p class="text-xs font-bold" :class="finding.severity === 'high' ? 'text-error' : 'text-on-surface'">{{ finding.message }}</p><code class="mt-1 block truncate text-[10px] text-secondary">{{ finding.preview }}</code></div><span class="text-[9px] font-bold text-secondary">{{ finding.severity }}</span></div></div>
               </section>
 
               <section v-if="selected.injectionFindings.length" class="mt-8 border-t border-outline-variant/30 pt-6">
-                <div class="flex items-center justify-between gap-3"><div><h3 class="font-headline text-base font-bold">提示注入检测</h3><p class="mt-1 text-xs text-secondary">{{ selected.injectionFindings.length }} 项，高风险片段默认不参与检索</p></div><span class="material-symbols-outlined" :class="selectedHighInjection.length ? 'text-error' : 'text-tertiary'">policy</span></div>
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 class="font-headline text-base font-bold">提示注入检测</h3>
+                    <p class="mt-1 text-xs text-secondary">{{ selected.injectionFindings.length }} 项，高风险片段默认不参与检索</p>
+                  </div>
+                  <ShieldCheck class="h-5 w-5 flex-shrink-0" :class="selectedHighInjection.length ? 'text-error' : 'text-tertiary'" :stroke-width="2" />
+                </div>
                 <div class="mt-4 divide-y divide-outline-variant/20"><div v-for="finding in selected.injectionFindings" :key="finding.id" class="flex items-start justify-between gap-4 py-3"><p class="text-xs font-bold" :class="finding.severity === 'high' ? 'text-error' : 'text-on-surface'">{{ finding.message }}</p><span class="text-[9px] font-bold text-secondary">{{ finding.severity }}</span></div></div>
               </section>
             </section>
           </div>
 
-          <div v-else class="flex min-h-0 flex-1 flex-col items-center justify-center text-center text-secondary"><span class="material-symbols-outlined mb-3 text-5xl text-outline">library_books</span><h3 class="font-headline text-lg font-bold text-on-surface">选择文档或开始检索</h3></div>
+          <div v-else class="flex min-h-0 flex-1 flex-col items-center justify-center text-center text-secondary">
+            <Library class="mb-3 h-12 w-12 text-outline/50" :stroke-width="1.5" />
+            <h3 class="font-headline text-lg font-bold text-on-surface">选择文档或开始检索</h3>
+          </div>
         </div>
       </main>
     </div>
@@ -600,11 +693,20 @@ function formatDate(value: number) {
     <Teleport to="body">
       <div v-if="showCreate" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/25 p-4" @click.self="showCreate = false">
         <form role="dialog" aria-modal="true" aria-labelledby="rag-create-title" class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-2xl" @submit.prevent="createDocument">
-          <div class="flex items-center justify-between gap-3"><h3 id="rag-create-title" class="font-headline text-xl font-bold">接入知识文档</h3><button type="button" class="tool-button" aria-label="关闭" @click="showCreate = false"><span class="material-symbols-outlined">close</span></button></div>
+          <div class="flex items-center justify-between gap-3">
+            <h3 id="rag-create-title" class="font-headline text-xl font-bold">接入知识文档</h3>
+            <button type="button" class="tool-button" aria-label="关闭" @click="showCreate = false">
+              <X class="h-5 w-5" :stroke-width="2" />
+            </button>
+          </div>
           <div class="segmented mt-4 w-fit"><button type="button" :class="createMode === 'document' ? 'bg-primary text-on-primary' : 'text-secondary'" @click="createMode = 'document'">文本或文件</button><button type="button" :class="createMode === 'resource' ? 'bg-primary text-on-primary' : 'text-secondary'" @click="createMode = 'resource'">Resource</button></div>
 
           <template v-if="createMode === 'document'">
-            <label class="mt-5 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-outline-variant/60 px-4 py-4 text-sm font-bold text-primary hover:bg-surface-container-low"><span class="material-symbols-outlined">upload_file</span>{{ createForm.originalFilename || '选择 TXT、Markdown、JSON 或 CSV' }}<input class="hidden" type="file" accept=".txt,.md,.markdown,.json,.csv,text/plain,text/markdown,application/json,text/csv" @change="handleFile" /></label>
+            <label class="mt-5 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-outline-variant/60 px-4 py-4 text-sm font-bold text-primary hover:bg-surface-container-low">
+              <Upload class="h-4.5 w-4.5" :stroke-width="2" />
+              {{ createForm.originalFilename || '选择 TXT、Markdown、JSON 或 CSV' }}
+              <input class="hidden" type="file" accept=".txt,.md,.markdown,.json,.csv,text/plain,text/markdown,application/json,text/csv" @change="handleFile" />
+            </label>
             <div class="mt-4 grid gap-3 md:grid-cols-2">
               <label class="field md:col-span-2">标题<input v-model="createForm.title" required maxlength="300" /></label>
               <label class="field">隐私级别<select v-model="createForm.privacy"><option v-for="option in privacyOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></label>

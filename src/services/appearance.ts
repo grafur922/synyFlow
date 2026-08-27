@@ -1,4 +1,4 @@
-﻿export type FontSizePreference = 'compact' | 'standard' | 'comfortable' | 'large'
+export type FontSizePreference = 'compact' | 'standard' | 'comfortable' | 'large'
 
 export const FONT_SIZE_STORAGE_KEY = 'terra_font_size'
 export const FONT_SIZE_OPTIONS: ReadonlyArray<{
@@ -7,10 +7,10 @@ export const FONT_SIZE_OPTIONS: ReadonlyArray<{
   description: string
   pixels: number
 }> = [
-  { id: 'compact', name: '紧凑', description: '94%', pixels: 15 },
-  { id: 'standard', name: '标准', description: '100%', pixels: 16 },
-  { id: 'comfortable', name: '舒适', description: '106%', pixels: 17 },
-  { id: 'large', name: '大号', description: '112.5%', pixels: 18 }
+  { id: 'compact', name: '紧凑', description: '87.5%', pixels: 14 },
+  { id: 'standard', name: '标准', description: '94%', pixels: 15 },
+  { id: 'comfortable', name: '舒适', description: '100%', pixels: 16 },
+  { id: 'large', name: '大号', description: '106%', pixels: 17 }
 ]
 
 export function getFontSizePreference(): FontSizePreference {

@@ -17,6 +17,7 @@
     "test:rag-aliyun": "node scripts/rag-aliyun-smoke.cjs",
     "test:rag-vector-store": "node scripts/rag-vector-store-smoke.cjs",
     "test:rag-hybrid": "node scripts/rag-hybrid-smoke.cjs",
+    "test:rag-rerank": "node scripts/rerank-smoke.cjs",
     "test:rag-xiaomi-sync": "node scripts/rag-xiaomi-sync-smoke.cjs",
     "test:rag-migration": "node scripts/rag-migration-smoke.cjs",
     "test:access-smoke": "node scripts/access-smoke.cjs",

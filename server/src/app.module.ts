@@ -24,11 +24,12 @@ import { AliyunEmbeddingProvider } from './rag/aliyun-embedding.provider'
 import { LanceDbVectorStore } from './rag/lancedb-vector.store'
 import { XiaomiNotesRagSyncService } from './rag/xiaomi-notes-rag-sync.service'
 import { ExternalRagProvider } from './rag/external-rag.provider'
+import { RerankProvider } from './rag/rerank.provider'
 import { ApiAccessMiddleware } from './security/api-access'
 
 @Module({
   controllers: [HealthController, TasksController, XiaomiNotesController, ResourcesController, RssController, BlogController, TravelController, RagController],
-  providers: [TasksService, XiaomiNotesService, XiaomiNoteHistoryService, XiaomiNoteMetadataService, XiaomiPassportService, ResourcesService, RssService, BlogService, TravelAttachmentStore, TravelMapService, TravelService, ExternalRagProvider, AliyunEmbeddingProvider, LanceDbVectorStore, RagService, XiaomiNotesRagSyncService]
+  providers: [TasksService, XiaomiNotesService, XiaomiNoteHistoryService, XiaomiNoteMetadataService, XiaomiPassportService, ResourcesService, RssService, BlogService, TravelAttachmentStore, TravelMapService, TravelService, ExternalRagProvider, AliyunEmbeddingProvider, RerankProvider, LanceDbVectorStore, RagService, XiaomiNotesRagSyncService]
 })
 export class AppModule implements NestModule {
   private readonly logger = new Logger('HTTP')

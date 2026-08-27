@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Timer, Flame, Sparkles } from 'lucide-vue-next'
 import { useTaskStore } from '../store/task'
 
 const taskStore = useTaskStore()
@@ -107,7 +108,7 @@ const strokeDashoffset = computed(() => {
               style="animation-delay: 0.16s;"
             >
               <div>
-                <span class="material-symbols-outlined text-primary mb-2 text-2xl">timer</span>
+                <Timer class="text-primary mb-2 h-5 w-5" :stroke-width="2" />
                 <h4 class="text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider font-bold">Focus Hours</h4>
               </div>
               <p class="text-headline-lg-mobile font-headline-lg-mobile text-on-background mt-2">{{ focusHours }}</p>
@@ -119,7 +120,7 @@ const strokeDashoffset = computed(() => {
               style="animation-delay: 0.20s;"
             >
               <div>
-                <span class="material-symbols-outlined text-primary mb-2 text-2xl">local_fire_department</span>
+                <Flame class="text-primary mb-2 h-5 w-5" :stroke-width="2" />
                 <h4 class="text-[10px] font-label-sm text-on-surface-variant uppercase tracking-wider font-bold">Current Streak</h4>
               </div>
               <p class="text-headline-lg-mobile font-headline-lg-mobile text-on-background mt-2">{{ streakDays }} 天</p>
@@ -134,7 +135,7 @@ const strokeDashoffset = computed(() => {
         <h3 class="text-title-md font-title-md text-on-background">每日洞察 (Insights)</h3>
         <div class="bg-surface-container-low border border-outline-variant/10 rounded-xl p-4 flex items-start gap-4">
           <div class="bg-primary-container/20 p-2 rounded-lg shrink-0 text-primary">
-            <span class="material-symbols-outlined text-xl">auto_awesome</span>
+            <Sparkles class="h-5 w-5" :stroke-width="2" />
           </div>
           <div>
             <h4 class="text-sm font-bold text-primary">清晨高效时段</h4>

@@ -58,12 +58,12 @@ function createMockTasks(): Task[] {
       timeStart: '09:00',
       timeEnd: '10:00',
       priority: 'Low',
-      notes: '准时参加周会，向团队汇报本周 Terra 设计规范落地进度。',
+      notes: '准时参加周会，向团队汇报本周 synyFlow 设计规范落地进度。',
       completed: true
     },
     {
       id: 'mock-4',
-      title: '完成 Terra 设计系统变量',
+      title: '完成 synyFlow 设计系统变量',
       category: '工作',
       date: today,
       timeStart: '10:00',

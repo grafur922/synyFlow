@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { join } from 'node:path'
 import { EncryptedJsonStore } from '../storage/encrypted-json.store'
 import { getDataEncryptionSecret } from '../security/secrets'
@@ -11,7 +11,7 @@ import type {
 const MAX_METADATA_ENTRIES = 50_000
 const MAX_TAGS = 20
 const MAX_TAG_LENGTH = 32
-const PRIVACY_LEVELS = new Set<NotePrivacyLevel>(['public', 'private', 'secret'])
+const PRIVACY_LEVELS = new Set<NotePrivacyLevel>(['public', 'private'])
 
 @Injectable()
 export class XiaomiNoteMetadataService {
@@ -24,7 +24,16 @@ export class XiaomiNoteMetadataService {
       encryptionSecret,
       encryptedFormat: 'terra-xiaomi-note-metadata',
       defaultValue: () => [],
-      validate: (value): value is XiaomiNoteMetadata[] => Array.isArray(value) && value.length <= MAX_METADATA_ENTRIES && value.every((item) => this.isMetadata(item)),
+      validate: (value): value is XiaomiNoteMetadata[] => {
+        if (!Array.isArray(value) || value.length > MAX_METADATA_ENTRIES) return false
+        // 兼容历史 secret 等级，将其归一化为 private
+        for (const item of value) {
+          if (item && typeof item === 'object' && (item as any).privacy === 'secret') {
+            (item as any).privacy = 'private'
+          }
+        }
+        return value.every((item) => this.isMetadata(item))
+      },
       maxPlaintextBytes: 8 * 1024 * 1024
     })
     void this.store.initialize()

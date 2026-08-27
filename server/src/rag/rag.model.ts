@@ -1,4 +1,4 @@
-﻿import type { ResourcePrivacy } from '../resources/resource.model'
+import type { ResourcePrivacy } from '../resources/resource.model'
 
 export type RagPrivacy = ResourcePrivacy
 export type RagMimeType = 'text/plain' | 'text/markdown' | 'application/json' | 'text/csv'
@@ -217,7 +217,7 @@ export interface RagQueryResult {
   citations: RagCitation[]
   queryWarnings: RagInjectionFinding[]
   excluded: { privacy: number; flagged: number; sensitive: number; duplicate: number }
-  provider: { mode: RagQueryProvider; embedding: string; answer: string; externalRequests: boolean }
+  provider: { mode: RagQueryProvider; embedding: string; answer: string; externalRequests: boolean; rerank?: string }
   generatedAt: number
   retrieval?: { mode: 'hybrid' | 'local'; reason?: string }
 }

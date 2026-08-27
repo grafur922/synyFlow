@@ -1,129 +1,128 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  getLocalTimeZone,
+  today,
+  parseDate,
+} from '@internationalized/date'
+import {
+  type DateValue,
+} from 'reka-ui'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  CalendarX,
+  CalendarPlus,
+  CheckCircle2,
+  Briefcase,
+  Home,
+  Clock,
+  Calendar as CalendarIcon,
+} from 'lucide-vue-next'
 import { useTaskStore } from '../store/task'
 import { useIsMobile } from '../composables/useIsMobile'
 import { toLocalDateString } from '../shared/date'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  CalendarRoot,
+  CalendarGrid,
+  CalendarGridHead,
+  CalendarGridBody,
+  CalendarGridRow,
+  CalendarCell,
+} from '@/components/ui/calendar'
 
 const router = useRouter()
 const taskStore = useTaskStore()
 const isMobile = useIsMobile()
 
-// 当前日历年份与月份状态
-const currentDate = ref(new Date())
+// 当前时区与今日日期对象
+const timeZone = getLocalTimeZone()
+const todayVal = today(timeZone)
 
-// 选中的日期，默认为今天 YYYY-MM-DD
-const selectedDateStr = ref(toLocalDateString())
+// 当前选中的日期（DateValue 响应式状态）
+function getInitialSelectedDate(): any {
+  try {
+    const todayStr = toLocalDateString()
+    return parseDate(todayStr)
+  } catch {
+    return todayVal
+  }
+}
 
-// 年份和月份计算
-const currentYear = computed(() => currentDate.value.getFullYear())
-const currentMonth = computed(() => currentDate.value.getMonth()) // 0-11
+const selectedDate = ref<any>(getInitialSelectedDate())
+
+// 占位日期（控制日历当前翻阅的年/月视图）
+const placeholder = ref<any>(todayVal)
+
+// 选中的 YYYY-MM-DD 字符串
+const selectedDateStr = computed(() => {
+  if (!selectedDate.value) return toLocalDateString()
+  const y = selectedDate.value.year
+  const m = String(selectedDate.value.month).padStart(2, '0')
+  const d = String(selectedDate.value.day).padStart(2, '0')
+  return `${y}-${m}-${d}`
+})
+
+// 年份与月份名称展示
+const currentYear = computed(() => placeholder.value.year)
+const currentMonth = computed(() => placeholder.value.month)
 
 const monthNames = [
   '一月', '二月', '三月', '四月', '五月', '六月',
   '七月', '八月', '九月', '十月', '十一月', '十二月'
 ]
 
-const currentMonthName = computed(() => monthNames[currentMonth.value])
+const currentMonthName = computed(() => monthNames[currentMonth.value - 1] || `${currentMonth.value}月`)
 
-// 日历网格计算
-const calendarDays = computed(() => {
-  const year = currentYear.value
-  const month = currentMonth.value
-
-  // 获取本月第一天是星期几 (0-6)
-  const firstDayIndex = new Date(year, month, 1).getDay()
-
-  // 获取本月共有多少天
-  const totalDays = new Date(year, month + 1, 0).getDate()
-
-  // 获取上月共有多少天
-  const prevTotalDays = new Date(year, month, 0).getDate()
-
-  const daysArr = []
-
-  // 1. 填充上个月的灰色日期
-  for (let i = firstDayIndex - 1; i >= 0; i--) {
-    const d = prevTotalDays - i
-    const m = month === 0 ? 11 : month - 1
-    const y = month === 0 ? year - 1 : year
-    daysArr.push({
-      day: d,
-      dateStr: `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
-      isCurrentMonth: false
-    })
-  }
-
-  // 2. 填充本月日期
-  for (let i = 1; i <= totalDays; i++) {
-    daysArr.push({
-      day: i,
-      dateStr: `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`,
-      isCurrentMonth: true
-    })
-  }
-
-  // 3. 填充下个月的灰色日期，以补齐 35 或 42 格
-  const remaining = 42 - daysArr.length
-  // 如果剩余格子大于 7，可以只填 35 格，但通常补满 42 格最规整
-  for (let i = 1; i <= remaining; i++) {
-    const m = month === 11 ? 0 : month + 1
-    const y = month === 11 ? year + 1 : year
-    daysArr.push({
-      day: i,
-      dateStr: `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`,
-      isCurrentMonth: false
-    })
-  }
-
-  return daysArr
-})
-
-const tasksByDateMap = computed(() => taskStore.tasksByDateMap)
-
-const calendarDaysWithTasks = computed(() => {
-  return calendarDays.value.map((day) => ({
-    ...day,
-    tasks: tasksByDateMap.value[day.dateStr] ?? []
-  }))
-})
-
-// 月份切换
+// 翻月控制
 const prevMonth = () => {
-  currentDate.value = new Date(currentYear.value, currentMonth.value - 1, 1)
+  placeholder.value = placeholder.value.subtract({ months: 1 })
 }
 
 const nextMonth = () => {
-  currentDate.value = new Date(currentYear.value, currentMonth.value + 1, 1)
+  placeholder.value = placeholder.value.add({ months: 1 })
 }
+
+const tasksByDateMap = computed(() => taskStore.tasksByDateMap)
 
 // 选中某一天的任务列表
 const selectedDateTasks = computed(() => {
-  return getTasksForDate(selectedDateStr.value)
+  return tasksByDateMap.value[selectedDateStr.value] ?? []
 })
 
-// 获取特定日期的任务
-const getTasksForDate = (dateStr: string) => {
-  return tasksByDateMap.value[dateStr] ?? []
-}
-
-// 选中天数的中文格式化
+// 格式化当前选中日期的文字说明，如 "2026年3月24日 星期二"
 const formattedSelectedDate = computed(() => {
-  const [y, m, d] = selectedDateStr.value.split('-')
-  const dateObj = new Date(Number(y), Number(m) - 1, Number(d))
+  if (!selectedDate.value) return { fullDate: '', dayOfWeek: '' }
+  const y = selectedDate.value.year
+  const m = selectedDate.value.month
+  const d = selectedDate.value.day
+  const dateObj = new Date(y, m - 1, d)
   const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
   return {
-    dayOfWeek: weekDays[dateObj.getDay()],
-    fullDate: `${monthNames[dateObj.getMonth()]} ${d}日`
+    fullDate: `${y}年${m}月${d}日`,
+    dayOfWeek: weekDays[dateObj.getDay()]
   }
 })
 
-// 选择日期
-const selectDate = (dateStr: string) => {
-  selectedDateStr.value = dateStr
+// 根据 dateValue 获取格式化 YYYY-MM-DD
+function getDateString(date: DateValue): string {
+  const y = date.year
+  const m = String(date.month).padStart(2, '0')
+  const d = String(date.day).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
-// 跳转到新增详情页，并携带日期参数
+// 获取某天的任务列表
+function getTasksForDate(date: DateValue) {
+  const str = getDateString(date)
+  return tasksByDateMap.value[str] || []
+}
+
+// 跳转到新增详情页
 const goToAddEvent = () => {
   router.push({
     path: '/task-details',
@@ -141,114 +140,158 @@ const editTask = (id: string) => {
   <div class="flex-grow flex flex-col h-full bg-background relative overflow-hidden">
     
     <!-- ==================== TOP NAVIGATION HEADER ==================== -->
-    <header class="calendar-safe-header bg-background/80 dark:bg-background/80 backdrop-blur-md flex justify-between items-center min-h-16 px-6 md:px-8 pb-4 shadow-sm flex-shrink-0 z-10 sticky top-0">
+    <header class="calendar-safe-header bg-background/80 backdrop-blur-md flex justify-between items-center min-h-16 px-6 md:px-8 pb-4 shadow-xs flex-shrink-0 z-10 sticky top-0 border-b border-outline-variant/20">
       <div class="flex items-center gap-4">
-        <h2 class="font-headline text-2xl text-primary dark:text-primary-fixed-dim font-bold">
+        <h2 class="font-headline text-2xl text-primary font-bold tracking-tight">
           {{ currentYear }}年 {{ currentMonthName }}
         </h2>
-        <div class="flex items-center gap-2">
-          <button 
+        <div class="flex items-center gap-1">
+          <Button 
+            variant="ghost" 
+            size="icon-sm"
             @click="prevMonth"
-            class="p-2 text-on-surface-variant hover:bg-surface-container-highest rounded-full transition-all flex items-center justify-center"
+            class="rounded-full text-on-surface-variant hover:bg-surface-container-highest"
           >
-            <span class="material-symbols-outlined">chevron_left</span>
-          </button>
-          <button 
+            <ChevronLeft class="h-4 w-4" :stroke-width="2" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon-sm"
             @click="nextMonth"
-            class="p-2 text-on-surface-variant hover:bg-surface-container-highest rounded-full transition-all flex items-center justify-center"
+            class="rounded-full text-on-surface-variant hover:bg-surface-container-highest"
           >
-            <span class="material-symbols-outlined">chevron_right</span>
-          </button>
+            <ChevronRight class="h-4 w-4" :stroke-width="2" />
+          </Button>
         </div>
       </div>
       
-      <div class="flex items-center gap-4">
-        <button 
+      <div class="flex items-center gap-3">
+        <Button 
           @click="goToAddEvent"
-          class="bg-primary text-on-primary md:flex hidden items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:opacity-95 transition-all"
+          size="sm"
+          class="hidden md:inline-flex rounded-xl shadow-xs"
         >
-          <span class="material-symbols-outlined text-sm">add</span>
-          新增日程
-        </button>
+          <Plus class="h-4 w-4" :stroke-width="2.2" />
+          <span>新增日程</span>
+        </Button>
       </div>
     </header>
 
     <!-- ==================== DESKTOP WORKSPACE (>= 768px) ==================== -->
     <div v-if="!isMobile" class="hidden md:flex flex-1 overflow-hidden p-6 md:p-8 gap-8">
       
-      <!-- Calendar Large Grid -->
-      <div class="flex-1 bg-surface-bright rounded-xl border border-outline-variant/30 flex flex-col overflow-hidden shadow-[0_4px_20px_rgba(46,50,48,0.06)]">
-        <!-- Day Headers -->
-        <div class="grid grid-cols-7 border-b border-outline-variant/30 bg-surface-container-low text-secondary font-bold text-sm text-center py-3 uppercase tracking-wider">
-          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-        </div>
-        <!-- Grid Cells -->
-        <div class="flex-1 grid grid-cols-7 grid-rows-6 bg-outline-variant/20 gap-[1px]">
-          <div 
-            v-for="item in calendarDaysWithTasks" 
-            :key="item.dateStr"
-            @click="selectDate(item.dateStr)"
-            :class="[
-              item.isCurrentMonth ? 'bg-surface-bright' : 'bg-surface-bright/40 opacity-50',
-              selectedDateStr === item.dateStr ? 'bg-secondary-fixed/50 ring-2 ring-primary relative z-10' : ''
-            ]"
-            class="p-2 flex flex-col cursor-pointer transition-colors duration-150 relative group"
-          >
-            <div class="flex justify-between items-center mb-1">
-              <span 
-                :class="selectedDateStr === item.dateStr ? 'bg-primary text-on-primary w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shadow-sm' : 'text-on-surface-variant font-bold text-sm'"
-              >
-                {{ item.day }}
-              </span>
+      <!-- Calendar Large Grid (Powered by Reka UI CalendarRoot) -->
+      <div class="flex-1 bg-surface-container-lowest rounded-2xl border border-outline-variant/30 flex flex-col overflow-hidden shadow-xs">
+        <CalendarRoot
+          v-model="selectedDate"
+          v-model:placeholder="placeholder"
+          :week-starts-on="0"
+          locale="zh-CN"
+          class="flex-1 flex flex-col p-0 w-full"
+          v-slot="{ grid, weekDays }"
+        >
+          <!-- Day Headers -->
+          <CalendarGridHead class="grid grid-cols-7 border-b border-outline-variant/30 bg-surface-container-low text-secondary font-bold text-xs text-center py-2.5 uppercase tracking-wider">
+            <div v-for="day in weekDays" :key="day" class="text-center">
+              {{ day }}
             </div>
-            
-            <!-- Tasks Badges -->
-            <div class="space-y-1 mt-1 overflow-y-auto max-h-[70px] no-scrollbar">
-              <div 
-                v-for="task in item.tasks" 
-                :key="task.id"
-                :class="[
-                  task.completed ? 'bg-surface-container text-outline/80 line-through' : '',
-                  !task.completed && task.category === '工作' ? 'bg-primary-container text-on-primary-container border border-primary/20' : '',
-                  !task.completed && task.category === '个人' ? 'bg-tertiary-container text-on-tertiary-container border border-tertiary/20' : '',
-                  !task.completed && task.category !== '工作' && task.category !== '个人' ? 'bg-surface-container text-on-surface' : ''
-                ]"
-                class="text-[10px] rounded px-1.5 py-0.5 truncate transition-all font-semibold"
-              >
-                {{ task.title }}
-              </div>
-            </div>
+          </CalendarGridHead>
+
+          <!-- Calendar Grid Content -->
+          <div class="flex-1 overflow-y-auto">
+            <CalendarGrid v-for="month in grid" :key="month.value.toString()" class="h-full w-full border-collapse space-y-0">
+              <CalendarGridBody class="h-full grid grid-rows-6 gap-[1px] bg-outline-variant/20">
+                <CalendarGridRow
+                  v-for="(weekDates, weekIndex) in month.rows"
+                  :key="`row-${weekIndex}`"
+                  class="grid grid-cols-7 gap-[1px] m-0 bg-transparent min-h-[90px]"
+                >
+                  <CalendarCell
+                    v-for="weekDate in weekDates"
+                    :key="weekDate.toString()"
+                    :date="weekDate"
+                    class="p-0 relative bg-surface-container-lowest group hover:bg-surface-container-low transition-colors duration-100 cursor-pointer"
+                    @click="selectedDate = weekDate"
+                  >
+                    <div
+                      :class="[
+                        'h-full w-full p-2 flex flex-col transition-all',
+                        selectedDateStr === getDateString(weekDate)
+                          ? 'bg-secondary-fixed/30 ring-2 ring-inset ring-primary'
+                          : ''
+                      ]"
+                    >
+                      <div class="flex justify-between items-center mb-1">
+                        <span 
+                          :class="[
+                            'text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full transition-colors',
+                            selectedDateStr === getDateString(weekDate)
+                              ? 'bg-primary text-on-primary shadow-xs'
+                              : weekDate.month === month.value.month
+                                ? 'text-on-surface'
+                                : 'text-on-surface-variant/30'
+                          ]"
+                        >
+                          {{ weekDate.day }}
+                        </span>
+
+                        <span
+                          v-if="weekDate.toString() === todayVal.toString()"
+                          class="text-[10px] text-primary font-bold px-1.5 py-0.2 bg-primary/10 rounded-md"
+                        >
+                          今天
+                        </span>
+                      </div>
+                      
+                      <!-- Tasks Badges inside Cell -->
+                      <div class="space-y-1 mt-1 overflow-y-auto max-h-[64px] no-scrollbar">
+                        <div 
+                          v-for="task in getTasksForDate(weekDate)" 
+                          :key="task.id"
+                          :class="[
+                            task.completed ? 'bg-surface-container text-outline/70 line-through' : '',
+                            !task.completed && task.category === '工作' ? 'bg-primary-container text-on-primary-container border border-primary/20' : '',
+                            !task.completed && task.category === '个人' ? 'bg-tertiary-container text-on-tertiary-container border border-tertiary/20' : '',
+                            !task.completed && task.category !== '工作' && task.category !== '个人' ? 'bg-surface-container-high text-on-surface' : ''
+                          ]"
+                          class="text-[10px] rounded px-1.5 py-0.5 truncate font-semibold"
+                        >
+                          {{ task.title }}
+                        </div>
+                      </div>
+                    </div>
+                  </CalendarCell>
+                </CalendarGridRow>
+              </CalendarGridBody>
+            </CalendarGrid>
           </div>
-        </div>
+        </CalendarRoot>
       </div>
 
       <!-- Right Details Panel (Desktop Aside) -->
-      <aside class="w-80 bg-surface-container-lowest rounded-xl border border-outline-variant/30 flex flex-col overflow-hidden shadow-[0_4px_20px_rgba(46,50,48,0.06)]">
-        <div class="p-6 border-b border-outline-variant/30 bg-surface-bright">
+      <aside class="w-80 bg-surface-container-lowest rounded-2xl border border-outline-variant/30 flex flex-col overflow-hidden shadow-xs">
+        <div class="p-6 border-b border-outline-variant/30 bg-surface-container-low">
           <h3 class="font-headline text-xl text-on-surface font-bold">{{ formattedSelectedDate.dayOfWeek }}</h3>
           <p class="text-primary font-bold text-lg">{{ formattedSelectedDate.fullDate }}</p>
         </div>
         
-        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        <div class="flex-1 overflow-y-auto p-4 space-y-3">
           <!-- Tasks list for selected day -->
           <div 
             v-for="task in selectedDateTasks" 
             :key="task.id"
             @click="editTask(task.id)"
             :class="{ 'opacity-60': task.completed }"
-            class="bg-surface-container p-4 rounded-xl border border-outline-variant/20 hover:bg-surface-container-high transition-colors cursor-pointer group"
+            class="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 hover:bg-surface-container hover:border-outline-variant transition-colors cursor-pointer group"
           >
             <div class="flex justify-between items-start mb-2">
-              <span 
-                :class="[
-                  task.category === '工作' ? 'text-primary' : '',
-                  task.category === '个人' ? 'text-tertiary' : 'text-secondary'
-                ]"
-                class="text-xs font-bold uppercase tracking-wide"
+              <Badge 
+                :variant="task.category === '工作' ? 'default' : task.category === '个人' ? 'secondary' : 'outline'"
+                class="text-[11px] font-bold tracking-wide"
               >
                 {{ task.category }}
-              </span>
-              <span v-if="task.timeStart" class="text-[10px] text-secondary bg-surface-bright px-2 py-0.5 rounded-md border border-outline-variant/20 font-bold">
+              </Badge>
+              <span v-if="task.timeStart" class="text-[10px] text-secondary bg-surface-container-lowest px-2 py-0.5 rounded-md border border-outline-variant/30 font-bold">
                 {{ task.timeStart }}
               </span>
             </div>
@@ -262,87 +305,99 @@ const editTask = (id: string) => {
           </div>
           
           <div v-if="selectedDateTasks.length === 0" class="text-center py-16 px-4">
-            <span class="material-symbols-outlined text-4xl text-secondary mb-2">event_busy</span>
+            <CalendarX class="h-10 w-10 text-secondary/50 mx-auto mb-2" :stroke-width="1.5" />
             <p class="text-sm font-semibold text-secondary">今日无日程安排</p>
             <p class="text-xs text-secondary/70 mt-1">享受惬意时光吧，或者新建一个日程记录！</p>
           </div>
         </div>
         
-        <div class="p-4 border-t border-outline-variant/30 bg-surface-bright flex-shrink-0">
-          <button 
+        <div class="p-4 border-t border-outline-variant/30 bg-surface-container-low flex-shrink-0">
+          <Button 
+            variant="outline"
             @click="goToAddEvent"
-            class="w-full bg-surface-bright text-primary border border-primary/30 rounded-xl py-2.5 px-4 font-bold flex items-center justify-center gap-2 hover:bg-primary-container hover:border-primary transition-colors duration-200"
+            class="w-full rounded-xl py-2.5 font-bold border-primary/30 text-primary hover:bg-primary/5"
           >
-            <span class="material-symbols-outlined text-sm">edit_calendar</span>
-            添加事件
-          </button>
+            <CalendarPlus class="h-4 w-4 mr-2" :stroke-width="2" />
+            <span>添加事件</span>
+          </Button>
         </div>
       </aside>
     </div>
 
     <!-- ==================== MOBILE WORKSPACE (< 768px) ==================== -->
-    <div v-else class="md:hidden flex-grow px-6 py-4 flex flex-col gap-6">
+    <div v-else class="md:hidden flex-grow px-4 py-4 flex flex-col gap-5 overflow-y-auto">
       
       <!-- Compact Month Calendar Card -->
-      <section class="flex-shrink-0">
-        <div class="bg-surface-bright rounded-2xl p-5 shadow-[0_4px_20px_rgba(46,50,48,0.04)] border border-outline-variant/20">
-          <!-- Week Headers -->
-          <div class="grid grid-cols-7 mb-4 text-center">
-            <span class="text-xs font-label text-secondary font-semibold uppercase tracking-wider">S</span>
-            <span class="text-xs font-label text-secondary font-semibold uppercase tracking-wider">M</span>
-            <span class="text-xs font-label text-secondary font-semibold uppercase tracking-wider">T</span>
-            <span class="text-xs font-label text-secondary font-semibold uppercase tracking-wider">W</span>
-            <span class="text-xs font-label text-secondary font-semibold uppercase tracking-wider">T</span>
-            <span class="text-xs font-label text-secondary font-semibold uppercase tracking-wider">F</span>
-            <span class="text-xs font-label text-secondary font-semibold uppercase tracking-wider">S</span>
+      <section class="flex-shrink-0 bg-surface-container-lowest rounded-2xl p-4 shadow-xs border border-outline-variant/30">
+        <CalendarRoot
+          v-model="selectedDate"
+          v-model:placeholder="placeholder"
+          :week-starts-on="0"
+          locale="zh-CN"
+          v-slot="{ grid, weekDays }"
+          class="w-full"
+        >
+          <div class="grid grid-cols-7 mb-2 text-center">
+            <span v-for="day in weekDays" :key="day" class="text-[11px] font-label text-secondary font-semibold uppercase">
+              {{ day }}
+            </span>
           </div>
-          <!-- Days Grid -->
-          <div class="grid grid-cols-7 gap-y-3 gap-x-1 text-center text-sm font-semibold">
-            <div 
-              v-for="item in calendarDaysWithTasks" 
-              :key="item.dateStr"
-              @click="selectDate(item.dateStr)"
-              :class="[
-                item.isCurrentMonth ? 'text-on-surface' : 'text-on-surface-variant/40 font-normal',
-                selectedDateStr === item.dateStr ? 'bg-primary text-on-primary rounded-full shadow-sm relative font-bold cursor-pointer scale-105' : 'rounded-full hover:bg-surface-container transition-colors cursor-pointer'
-              ]"
-              class="py-2 flex items-center justify-center aspect-square text-xs relative"
+
+          <div v-for="month in grid" :key="month.value.toString()" class="space-y-1">
+            <div
+              v-for="(weekDates, weekIndex) in month.rows"
+              :key="`m-week-${weekIndex}`"
+              class="grid grid-cols-7 gap-1 text-center text-sm font-semibold"
             >
-              {{ item.day }}
-              
-              <!-- Event indicators (small dot under day text) -->
-              <span 
-                v-if="item.tasks.length > 0 && selectedDateStr !== item.dateStr" 
-                class="absolute bottom-1 w-1 h-1 rounded-full"
-                :class="item.tasks[0]?.category === '工作' ? 'bg-primary' : 'bg-tertiary'"
-              ></span>
+              <div
+                v-for="weekDate in weekDates"
+                :key="weekDate.toString()"
+                @click="selectedDate = weekDate"
+                :class="[
+                  'py-1.5 flex flex-col items-center justify-center aspect-square text-xs rounded-xl relative cursor-pointer transition-all',
+                  weekDate.month === month.value.month ? 'text-on-surface' : 'text-on-surface-variant/30 font-normal',
+                  selectedDateStr === getDateString(weekDate)
+                    ? 'bg-primary text-on-primary font-bold shadow-xs scale-105'
+                    : 'hover:bg-surface-container'
+                ]"
+              >
+                <span>{{ weekDate.day }}</span>
+                
+                <!-- Event indicators dot -->
+                <span 
+                  v-if="getTasksForDate(weekDate).length > 0 && selectedDateStr !== getDateString(weekDate)" 
+                  class="absolute bottom-1 w-1 h-1 rounded-full bg-primary"
+                ></span>
+              </div>
             </div>
           </div>
-        </div>
+        </CalendarRoot>
       </section>
 
       <!-- Tasks list for selected day (Mobile) -->
-      <section class="flex-1 flex flex-col overflow-hidden min-h-[200px]">
-        <div class="flex justify-between items-center mb-4 flex-shrink-0">
-          <h2 class="font-headline text-lg text-on-surface font-semibold">
+      <section class="flex-1 flex flex-col min-h-[200px]">
+        <div class="flex justify-between items-center mb-3 flex-shrink-0 px-1">
+          <h2 class="font-headline text-base text-on-surface font-semibold">
             日程 - {{ formattedSelectedDate.fullDate }} ({{ selectedDateTasks.length }})
           </h2>
-          <button 
+          <Button 
+            variant="ghost"
+            size="sm"
             @click="goToAddEvent"
-            class="text-primary text-sm font-semibold hover:text-primary-fixed-dim transition-colors flex items-center gap-1"
+            class="text-primary text-xs font-semibold h-7 px-2"
           >
-            <span class="material-symbols-outlined text-sm">add</span> 
-            添加
-          </button>
+            <Plus class="h-3.5 w-3.5 mr-1" :stroke-width="2.2" /> 
+            <span>添加</span>
+          </Button>
         </div>
         
-        <div class="flex-1 overflow-y-auto flex flex-col gap-3 pb-6">
+        <div class="flex-1 flex flex-col gap-2.5 pb-6">
           <div 
             v-for="task in selectedDateTasks" 
             :key="task.id"
             @click="editTask(task.id)"
-            :class="task.completed ? 'bg-surface-container-low border border-outline-variant/10 opacity-75' : 'bg-surface-bright border border-outline-variant/20 shadow-[0_4px_20px_rgba(46,50,48,0.04)]'"
-            class="rounded-2xl p-4 flex gap-4 items-start cursor-pointer active:scale-[0.98] transition-transform duration-100"
+            :class="task.completed ? 'bg-surface-container-low border border-outline-variant/10 opacity-75' : 'bg-surface-container-lowest border border-outline-variant/30 shadow-xs'"
+            class="rounded-xl p-3.5 flex gap-3.5 items-start cursor-pointer active:scale-[0.98] transition-transform duration-100"
           >
             <!-- Category color box icon -->
             <div 
@@ -352,39 +407,39 @@ const editTask = (id: string) => {
                 !task.completed && task.category === '个人' ? 'bg-tertiary-container/30 text-tertiary' : '',
                 !task.completed && task.category !== '工作' && task.category !== '个人' ? 'bg-surface-container text-secondary' : ''
               ]"
-              class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+              class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
             >
-              <span class="material-symbols-outlined">
-                {{ task.completed ? 'check_circle' : (task.category === '工作' ? 'work' : 'home') }}
-              </span>
+              <CheckCircle2 v-if="task.completed" class="h-4 w-4" :stroke-width="2" />
+              <Briefcase v-else-if="task.category === '工作'" class="h-4 w-4" :stroke-width="2" />
+              <Home v-else class="h-4 w-4" :stroke-width="2" />
             </div>
             
             <div class="flex-1 min-w-0">
               <h3 
                 :class="{ 'text-outline line-through': task.completed, 'text-on-surface': !task.completed }"
-                class="font-semibold text-base mb-1 truncate"
+                class="font-semibold text-sm mb-0.5 truncate"
               >
                 {{ task.title }}
               </h3>
-              <p class="text-xs text-secondary line-clamp-1 mb-2">{{ task.notes || '没有详细备注说明' }}</p>
+              <p class="text-[11px] text-secondary line-clamp-1 mb-1.5">{{ task.notes || '没有详细备注说明' }}</p>
               <div 
                 v-if="task.timeStart"
                 :class="task.completed ? 'text-outline' : 'text-on-surface-variant'" 
-                class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider"
+                class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider"
               >
-                <span class="material-symbols-outlined text-[14px]">schedule</span>
-                {{ task.timeStart }} {{ task.timeEnd ? '- ' + task.timeEnd : '' }}
+                <Clock class="h-3 w-3" :stroke-width="2" />
+                <span>{{ task.timeStart }} {{ task.timeEnd ? '- ' + task.timeEnd : '' }}</span>
               </div>
             </div>
           </div>
 
           <div 
             v-if="selectedDateTasks.length === 0" 
-            class="text-center py-12 px-4 bg-surface-container-low rounded-xl border border-dashed border-outline-variant"
+            class="text-center py-10 px-4 bg-surface-container-low rounded-xl border border-dashed border-outline-variant"
           >
-            <span class="material-symbols-outlined text-4xl text-secondary mb-2">calendar_today</span>
+            <CalendarIcon class="h-8 w-8 text-secondary/40 mx-auto mb-2" :stroke-width="1.5" />
             <p class="text-sm font-semibold text-secondary">这一天没有日程</p>
-            <p class="text-xs text-secondary/70 mt-1">给这一天写个待办，或者出去走走吧！</p>
+            <p class="text-xs text-secondary/60 mt-1">给这一天写个待办，或者出去走走吧！</p>
           </div>
         </div>
       </section>
@@ -395,7 +450,6 @@ const editTask = (id: string) => {
 </template>
 
 <style scoped>
-/* Circular chart helper */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -405,7 +459,6 @@ const editTask = (id: string) => {
 }
 
 .calendar-safe-header {
-  padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
 }
 </style>
-

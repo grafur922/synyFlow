@@ -1,5 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import {
+  AlertCircle,
+  X,
+  CheckCircle2,
+  MapPinOff,
+  Route,
+  Navigation,
+  Paperclip,
+  FileText,
+  Download,
+  Trash2,
+  FileX,
+  Eye,
+  EyeOff,
+  Archive,
+  Upload
+} from 'lucide-vue-next'
 import { travelApi } from '../../services/travelApi'
 import type {
   Trip,
@@ -235,8 +252,17 @@ function messageFrom(cause: unknown) {
 
 <template>
   <div class="mx-auto max-w-5xl">
-    <div v-if="error" role="alert" class="mb-5 flex items-start gap-2 rounded-lg bg-error-container/60 p-3 text-sm text-on-error-container"><span class="material-symbols-outlined text-[20px]">error</span><span class="min-w-0 flex-1 break-words">{{ error }}</span><button type="button" class="icon-button" aria-label="关闭" @click="error = ''"><span class="material-symbols-outlined text-[18px]">close</span></button></div>
-    <div v-else-if="notice" role="status" class="mb-5 flex items-center gap-2 border-l-2 border-primary bg-primary-container/20 px-3 py-2 text-xs font-bold text-primary"><span class="material-symbols-outlined text-[18px]">check_circle</span>{{ notice }}</div>
+    <div v-if="error" role="alert" class="mb-5 flex items-start gap-2 rounded-lg bg-error-container/60 p-3 text-sm text-on-error-container">
+      <AlertCircle class="h-5 w-5 text-on-error-container flex-shrink-0" :stroke-width="2" />
+      <span class="min-w-0 flex-1 break-words">{{ error }}</span>
+      <button type="button" class="icon-button" aria-label="关闭" @click="error = ''">
+        <X class="h-4.5 w-4.5" :stroke-width="2" />
+      </button>
+    </div>
+    <div v-else-if="notice" role="status" class="mb-5 flex items-center gap-2 border-l-2 border-primary bg-primary-container/20 px-3 py-2 text-xs font-bold text-primary">
+      <CheckCircle2 class="h-4.5 w-4.5" :stroke-width="2" />
+      <span>{{ notice }}</span>
+    </div>
 
     <section class="pb-7">
       <div class="flex flex-wrap items-start justify-between gap-4">
@@ -253,13 +279,18 @@ function messageFrom(cause: unknown) {
           <span class="mt-1 text-[10px] text-secondary">{{ day.date }} · {{ place.startTime || '--:--' }}</span>
         </button>
       </div>
-      <div v-else class="empty-row mt-5"><span class="material-symbols-outlined">location_off</span><span>还没有行程地点</span></div>
+      <div v-else class="empty-row mt-5">
+        <MapPinOff class="h-5 w-5 text-secondary" :stroke-width="1.8" />
+        <span>还没有行程地点</span>
+      </div>
 
       <div v-if="trip.segments.length" class="mt-5 divide-y divide-outline-variant/20 border-y border-outline-variant/25">
         <div v-for="segment in trip.segments" :key="segment.id" class="flex min-h-14 items-center gap-3 py-2.5">
-          <span class="material-symbols-outlined text-[20px] text-primary">route</span>
+          <Route class="h-5 w-5 text-primary flex-shrink-0" :stroke-width="2" />
           <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold">{{ segment.fromName }} → {{ segment.toName }}</p><p class="mt-0.5 text-[10px] text-secondary">{{ segment.distanceKm === undefined ? '距离未定' : `${segment.distanceKm} km` }}</p></div>
-          <button v-if="providerSupportsRoute(segment.mode)" type="button" class="icon-button" title="打开路线" aria-label="打开路线" :disabled="busy" @click="openSegment(segment)"><span class="material-symbols-outlined text-[19px]">directions</span></button>
+          <button v-if="providerSupportsRoute(segment.mode)" type="button" class="icon-button" title="打开路线" aria-label="打开路线" :disabled="busy" @click="openSegment(segment)">
+            <Navigation class="h-4.5 w-4.5" :stroke-width="1.8" />
+          </button>
         </div>
       </div>
     </section>
@@ -269,29 +300,55 @@ function messageFrom(cause: unknown) {
         <div><h3 class="font-headline text-lg font-bold">附件</h3><p class="mt-1 text-xs text-secondary">{{ trip.attachments.length }} 个 · {{ formatBytes(trip.attachments.reduce((sum, item) => sum + item.size, 0)) }}</p></div>
         <div class="flex min-w-0 flex-wrap items-center justify-end gap-2">
           <select v-model="attachmentTarget" class="h-9 min-w-0 max-w-60 rounded-lg border-outline-variant/30 bg-surface-bright py-1 pl-3 pr-8 text-xs font-bold" aria-label="附件归属"><option v-for="target in attachmentTargets" :key="target.value" :value="target.value">{{ target.label }}</option></select>
-          <label class="action-button cursor-pointer border border-outline-variant/40 text-primary" :class="{ 'pointer-events-none opacity-40': busy || !status?.attachmentStoreAvailable }"><span class="material-symbols-outlined text-[18px]">attach_file</span>添加<input type="file" class="hidden" @change="uploadAttachment" /></label>
+          <label class="action-button cursor-pointer border border-outline-variant/40 text-primary" :class="{ 'pointer-events-none opacity-40': busy || !status?.attachmentStoreAvailable }">
+            <Paperclip class="h-4 w-4" :stroke-width="2" />
+            <span>添加</span>
+            <input type="file" class="hidden" @change="uploadAttachment" />
+          </label>
         </div>
       </div>
       <p v-if="status && !status.attachmentStoreAvailable" class="mt-4 rounded-lg bg-error-container/50 px-3 py-2 text-xs text-on-error-container">{{ status.attachmentStoreMessage }}</p>
       <div v-if="trip.attachments.length" class="mt-5 grid gap-2 sm:grid-cols-2">
         <article v-for="attachment in trip.attachments" :key="attachment.id" class="flex min-h-20 items-center gap-3 rounded-lg border border-outline-variant/25 bg-surface-bright p-3">
-          <span class="material-symbols-outlined flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-surface-container-high text-primary">draft</span>
+          <span class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-surface-container-high text-primary">
+            <FileText class="h-4.5 w-4.5" :stroke-width="2" />
+          </span>
           <div class="min-w-0 flex-1"><p class="truncate text-sm font-bold" :title="attachment.filename">{{ attachment.filename }}</p><p class="mt-1 truncate text-[10px] text-secondary">{{ scopeLabel(attachment) }} · {{ formatBytes(attachment.size) }}</p></div>
-          <button type="button" class="icon-button" title="下载附件" aria-label="下载附件" :disabled="busy" @click="downloadAttachment(attachment)"><span class="material-symbols-outlined text-[18px]">download</span></button>
-          <button type="button" class="icon-button text-error" title="删除附件" aria-label="删除附件" :disabled="busy" @click="removeAttachment(attachment)"><span class="material-symbols-outlined text-[18px]">delete</span></button>
+          <button type="button" class="icon-button" title="下载附件" aria-label="下载附件" :disabled="busy" @click="downloadAttachment(attachment)">
+            <Download class="h-4.5 w-4.5" :stroke-width="2" />
+          </button>
+          <button type="button" class="icon-button text-error" title="删除附件" aria-label="删除附件" :disabled="busy" @click="removeAttachment(attachment)">
+            <Trash2 class="h-4.5 w-4.5" :stroke-width="2" />
+          </button>
         </article>
       </div>
-      <div v-else class="empty-row mt-5"><span class="material-symbols-outlined">attach_file_off</span><span>还没有附件</span></div>
+      <div v-else class="empty-row mt-5">
+        <FileX class="h-5 w-5 text-secondary" :stroke-width="1.8" />
+        <span>还没有附件</span>
+      </div>
     </section>
 
     <section class="border-t border-outline-variant/30 py-7">
       <div><h3 class="font-headline text-lg font-bold">离线行程包</h3><p class="mt-1 text-xs text-secondary">{{ trip.title }} · {{ trip.startDate }} → {{ trip.endDate }}</p></div>
       <label class="mt-5 block max-w-xl text-xs font-bold text-secondary">行程包口令
-        <span class="mt-2 flex items-center rounded-lg border border-outline-variant/30 bg-surface-bright focus-within:ring-2 focus-within:ring-primary"><input v-model="packagePassphrase" :type="showPackagePassphrase ? 'text' : 'password'" minlength="16" maxlength="1024" autocomplete="new-password" class="min-w-0 flex-1 border-0 bg-transparent text-sm focus:ring-0" /><button type="button" class="flex h-10 w-10 items-center justify-center text-secondary" :aria-label="showPackagePassphrase ? '隐藏口令' : '显示口令'" @click="showPackagePassphrase = !showPackagePassphrase"><span class="material-symbols-outlined text-[19px]">{{ showPackagePassphrase ? 'visibility_off' : 'visibility' }}</span></button></span>
+        <span class="mt-2 flex items-center rounded-lg border border-outline-variant/30 bg-surface-bright focus-within:ring-2 focus-within:ring-primary">
+          <input v-model="packagePassphrase" :type="showPackagePassphrase ? 'text' : 'password'" minlength="16" maxlength="1024" autocomplete="new-password" class="min-w-0 flex-1 border-0 bg-transparent text-sm focus:ring-0" />
+          <button type="button" class="flex h-10 w-10 items-center justify-center text-secondary" :aria-label="showPackagePassphrase ? '隐藏口令' : '显示口令'" @click="showPackagePassphrase = !showPackagePassphrase">
+            <EyeOff v-if="showPackagePassphrase" class="h-4.5 w-4.5" :stroke-width="1.8" />
+            <Eye v-else class="h-4.5 w-4.5" :stroke-width="1.8" />
+          </button>
+        </span>
       </label>
       <div class="mt-4 flex flex-wrap gap-2">
-        <button type="button" class="action-button bg-primary text-on-primary" :disabled="busy" @click="exportOfflinePackage"><span class="material-symbols-outlined text-[18px]">inventory_2</span>导出行程包</button>
-        <label class="action-button cursor-pointer border border-outline-variant/40 text-primary" :class="{ 'pointer-events-none opacity-40': busy }"><span class="material-symbols-outlined text-[18px]">unarchive</span>导入行程包<input type="file" class="hidden" accept=".terra-trip,application/vnd.terra.trip+json" @change="importOfflinePackage" /></label>
+        <button type="button" class="action-button bg-primary text-on-primary" :disabled="busy" @click="exportOfflinePackage">
+          <Archive class="h-4 w-4" :stroke-width="2" />
+          <span>导出行程包</span>
+        </button>
+        <label class="action-button cursor-pointer border border-outline-variant/40 text-primary" :class="{ 'pointer-events-none opacity-40': busy }">
+          <Upload class="h-4 w-4" :stroke-width="2" />
+          <span>导入行程包</span>
+          <input type="file" class="hidden" accept=".terra-trip,application/vnd.terra.trip+json" @change="importOfflinePackage" />
+        </label>
       </div>
     </section>
   </div>

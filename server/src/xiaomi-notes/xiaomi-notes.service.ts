@@ -8,18 +8,22 @@ import {
   ServiceUnavailableException
 } from '@nestjs/common'
 import { createHash } from 'node:crypto'
+import { join } from 'node:path'
+import { EncryptedJsonStore } from '../storage/encrypted-json.store'
 import type {
   XiaomiConnectorMode,
   XiaomiNote,
   XiaomiNoteFolder,
   XiaomiNoteInput,
   XiaomiNotePage,
+  XiaomiNotesLocalCache,
   XiaomiRawNoteEntry
 } from './xiaomi-note.model'
 import { XiaomiNoteHistoryService } from './xiaomi-note-history.service'
 import { XiaomiPassportService, type XiaomiRefreshCredentialUpdate } from './xiaomi-passport.service'
 import {
   canWriteWindowsSystemSecrets,
+  getDataEncryptionSecret,
   getXiaomiCloudCookie,
   getXiaomiCloudCookieSource,
   hasEnvironmentXiaomiCloudCookie,
@@ -79,6 +83,8 @@ export class XiaomiNotesService {
   private serviceToken = ''
   private readonly listCache = new Map<string, CacheEntry<XiaomiNotePage>>()
   private readonly detailCache = new Map<string, CacheEntry<XiaomiNote>>()
+  private readonly localStore: EncryptedJsonStore<XiaomiNotesLocalCache>
+  private syncPromise?: Promise<XiaomiNotesLocalCache>
   private readonly readOnly = process.env.TERRA_XIAOMI_READ_ONLY === 'true'
   private readonly auditToStdout = process.env.TERRA_XIAOMI_AUDIT_STDOUT === 'true'
   private readonly auditEvents: XiaomiAuditEvent[] = []
@@ -93,6 +99,17 @@ export class XiaomiNotesService {
     private readonly history: XiaomiNoteHistoryService,
     private readonly passport: XiaomiPassportService = new XiaomiPassportService()
   ) {
+    const encryptionSecret = getDataEncryptionSecret()
+    this.localStore = new EncryptedJsonStore<XiaomiNotesLocalCache>({
+      filePath: process.env.TERRA_XIAOMI_CACHE_FILE || join(process.cwd(), 'data', 'xiaomi-notes-cache.json'),
+      encryptionSecret,
+      encryptedFormat: 'terra-xiaomi-notes-cache',
+      defaultValue: () => ({ notes: [], folders: [] }),
+      validate: (value): value is XiaomiNotesLocalCache =>
+        Boolean(value && typeof value === 'object' && Array.isArray((value as XiaomiNotesLocalCache).notes) && Array.isArray((value as XiaomiNotesLocalCache).folders)),
+      maxPlaintextBytes: 32 * 1024 * 1024
+    })
+    void this.localStore.initialize()
     this.reloadCredentials()
   }
 
@@ -111,7 +128,7 @@ export class XiaomiNotesService {
     const credentialWritable = canWriteWindowsSystemSecrets() && !hasEnvironmentXiaomiCloudCookie()
     let message = credentialSource === 'environment' ? '小米云凭证已通过服务端环境变量配置' : '小米云凭证已安全保存在 Windows DPAPI'
     if (!configured) message = credentialWritable ? '请在此页面输入本人 i.mi.com 会话的完整 Cookie' : '请在服务端环境变量 XIAOMI_CLOUD_COOKIE 中配置完整 Cookie'
-    else if (this.credentialsInvalid) message = credentialWritable ? '小米云登录凭证已失效，请在此页面更新完整 Cookie' : '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server'
+    else if (this.credentialsInvalid) message = credentialWritable ? '小米云登录凭证已失效，请在此页面更新完整 Cookie' : '小米云登录凭证已失效，请更新服务端环境变量并重启 synyFlow 服务端'
     else if (circuitOpen) message = `小米云连续请求失败，连接器暂时熔断，请 ${retryAfterSeconds} 秒后重试`
     else if (this.readOnly) message = '小米笔记连接器处于只读安全模式'
     return {
@@ -134,7 +151,6 @@ export class XiaomiNotesService {
       message
     }
   }
-
 
   updateRefreshCredentials(input: XiaomiRefreshCredentialUpdate) {
     this.passport.updateCredentials(input)
@@ -164,47 +180,142 @@ export class XiaomiNotesService {
     return this.auditEvents.map(({ targetHash, ...event }) => ({ targetHash, ...event }))
   }
 
+  async syncNotes(forceFull = false): Promise<XiaomiNotesLocalCache> {
+    if (this.syncPromise) return this.syncPromise
+    const operation = this.performSyncNotes(forceFull)
+    this.syncPromise = operation
+    try {
+      return await operation
+    } finally {
+      if (this.syncPromise === operation) this.syncPromise = undefined
+    }
+  }
+
+  private async getLocalCache(): Promise<XiaomiNotesLocalCache> {
+    try {
+      return await this.localStore.read()
+    } catch {
+      return { notes: [], folders: [] }
+    }
+  }
+
+  private async performSyncNotes(forceFull: boolean): Promise<XiaomiNotesLocalCache> {
+    this.assertConfigured()
+    const cached = await this.getLocalCache()
+    const isIncremental = !forceFull && Boolean(cached.syncTag) && Array.isArray(cached.notes) && cached.notes.length > 0
+    let cursor = isIncremental ? cached.syncTag : undefined
+    let finalSyncTag: string | undefined
+    const seenCursors = new Set<string>()
+    const incomingNotes: XiaomiNote[] = []
+    const deletedIds = new Set<string>()
+    const folderMap = new Map<string, XiaomiNoteFolder>(isIncremental ? (cached.folders || []).map((f) => [f.id, f]) : [])
+    let pages = 0
+
+    while (pages < 500) {
+      pages += 1
+      const query = new URLSearchParams({
+        ts: String(Date.now()),
+        limit: '50'
+      })
+      if (cursor) query.set('syncTag', cursor)
+
+      const data = await this.request<XiaomiPageData>(`/note/full/page?${query.toString()}`)
+      if (data.entries !== undefined && !Array.isArray(data.entries)) {
+        throw new BadGatewayException('小米笔记列表响应中的 entries 格式不正确')
+      }
+      if (data.folders !== undefined && !Array.isArray(data.folders)) {
+        throw new BadGatewayException('小米笔记列表响应中的 folders 格式不正确')
+      }
+
+      for (const folder of data.folders || []) {
+        folderMap.set(String(folder.id), this.toFolder(folder))
+      }
+
+      for (const entry of data.entries || []) {
+        if (entry?.type === 'folder') continue
+        if (entry?.status === 'deleted') {
+          deletedIds.add(this.assertId(String(entry.id)))
+        } else if (entry?.id) {
+          incomingNotes.push(this.toNote(entry, false))
+        }
+      }
+
+      if (data.lastPage) {
+        finalSyncTag = this.cleanCursor(data.syncTag) || cursor
+        break
+      }
+
+      const nextCursor = this.cleanCursor(data.syncTag)
+      if (!nextCursor) {
+        throw new BadGatewayException('小米笔记分页响应缺少下一页游标')
+      }
+      if (seenCursors.has(nextCursor)) {
+        finalSyncTag = nextCursor || cursor
+        break
+      }
+      seenCursors.add(nextCursor)
+      cursor = nextCursor
+    }
+
+    let mergedNotes: XiaomiNote[]
+    if (isIncremental) {
+      const existingMap = new Map<string, XiaomiNote>((cached.notes || []).map((n) => [n.id, n]))
+      for (const delId of deletedIds) {
+        existingMap.delete(delId)
+      }
+      for (const note of incomingNotes) {
+        existingMap.set(note.id, note)
+      }
+      mergedNotes = Array.from(existingMap.values())
+    } else {
+      const notesMap = new Map<string, XiaomiNote>()
+      for (const note of incomingNotes) {
+        if (!deletedIds.has(note.id)) {
+          notesMap.set(note.id, note)
+        }
+      }
+      mergedNotes = Array.from(notesMap.values())
+    }
+
+    mergedNotes.sort((a, b) => (b.modifyDate || 0) - (a.modifyDate || 0))
+
+    const updatedCache: XiaomiNotesLocalCache = {
+      notes: mergedNotes,
+      folders: Array.from(folderMap.values()),
+      syncTag: finalSyncTag || cached.syncTag,
+      lastSyncAt: Date.now()
+    }
+
+    try {
+      await this.localStore.update(() => updatedCache)
+    } catch {
+      // 存储异常时不阻塞数据返回
+    }
+
+    return updatedCache
+  }
+
   async findPage(options: { cursor?: string; limit?: number; forceRefresh?: boolean } = {}) {
     this.assertConfigured()
-    const cursor = this.cleanCursor(options.cursor)
-    const limit = this.normalizeLimit(options.limit)
-    const cacheKey = `${cursor || 'first'}:${limit}`
 
-    if (!options.forceRefresh) {
-      const cached = this.getCache(this.listCache, cacheKey)
-      if (cached) return { ...cached, cached: true }
+    let cached = await this.getLocalCache()
+    const needInitialSync = (!cached.notes || cached.notes.length === 0) && !cached.syncTag
+
+    if (needInitialSync || options.forceRefresh) {
+      cached = await this.syncNotes(needInitialSync)
     }
 
-    const query = new URLSearchParams({
-      ts: String(Date.now()),
-      limit: String(limit)
-    })
-    if (cursor) query.set('syncTag', cursor)
+    const notes = [...(cached.notes || [])].sort((a, b) => (b.modifyDate || 0) - (a.modifyDate || 0))
 
-    const data = await this.request<XiaomiPageData>(`/note/full/page?${query.toString()}`)
-    if (data.entries !== undefined && !Array.isArray(data.entries)) {
-      throw new BadGatewayException('小米笔记列表响应中的 entries 格式不正确')
-    }
-    if (data.folders !== undefined && !Array.isArray(data.folders)) {
-      throw new BadGatewayException('小米笔记列表响应中的 folders 格式不正确')
-    }
-    const syncCursor = this.cleanCursor(data.syncTag)
-    const nextCursor = data.lastPage ? undefined : syncCursor
-    if (!data.lastPage && !nextCursor) {
-      throw new BadGatewayException('小米笔记分页响应缺少下一页游标')
-    }
     const page: XiaomiNotePage = {
-      notes: (data.entries || [])
-        .filter((entry) => entry?.type !== 'folder' && entry?.status !== 'deleted')
-        .map((entry) => this.toNote(entry, false)),
-      folders: (data.folders || []).map((folder) => this.toFolder(folder)),
-      syncCursor,
-      nextCursor,
-      lastPage: Boolean(data.lastPage),
-      cached: false
+      notes,
+      folders: cached.folders || [],
+      syncCursor: cached.syncTag,
+      nextCursor: undefined,
+      lastPage: true,
+      cached: !options.forceRefresh
     }
 
-    this.setCache(this.listCache, cacheKey, page, LIST_CACHE_TTL_MS)
     return page
   }
 
@@ -250,6 +361,7 @@ export class XiaomiNotesService {
       this.invalidateCaches(baseEntry.id)
       const note = await this.findOne(baseEntry.id, true)
       await this.history.capture(note, 'created')
+      await this.upsertLocalNote(note)
       return note
     })
   }
@@ -271,7 +383,9 @@ export class XiaomiNotesService {
       }
       await this.saveExisting(detail.entry, noteInput)
       this.invalidateCaches(safeId)
-      return this.findOne(safeId, true)
+      const updated = await this.findOne(safeId, true)
+      await this.upsertLocalNote(updated)
+      return updated
     })
   }
 
@@ -293,6 +407,7 @@ export class XiaomiNotesService {
       if (result.conflict) throw new BadGatewayException('Delete conflict; refresh and try again')
 
       this.invalidateCaches(safeId)
+      await this.removeLocalNote(safeId)
       return { id: safeId, deleted: true }
     })
   }
@@ -353,8 +468,37 @@ export class XiaomiNotesService {
       this.invalidateCaches(safeId)
       const restored = await this.findOne(safeId, true)
       await this.history.capture(restored, 'restored')
+      await this.upsertLocalNote(restored)
       return restored
     })
+  }
+
+  private async upsertLocalNote(note: XiaomiNote) {
+    try {
+      const summary: XiaomiNote = { ...note }
+      delete summary.content
+      await this.localStore.update((current) => {
+        const next = [summary, ...(current.notes || []).filter((n) => n.id !== note.id)]
+        next.sort((a, b) => (b.modifyDate || 0) - (a.modifyDate || 0))
+        return {
+          ...current,
+          notes: next
+        }
+      })
+    } catch {
+      // Ignore cache write failure
+    }
+  }
+
+  private async removeLocalNote(id: string) {
+    try {
+      await this.localStore.update((current) => ({
+        ...current,
+        notes: (current.notes || []).filter((n) => n.id !== id)
+      }))
+    } catch {
+      // Ignore cache write failure
+    }
   }
 
   private async saveExisting(entry: XiaomiRawNoteEntry, input: XiaomiNoteInput) {
@@ -430,7 +574,7 @@ export class XiaomiNotesService {
           }
         }
         this.credentialsInvalid = true
-        throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
+        throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 synyFlow 服务端' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
       }
 
       let envelope: XiaomiEnvelope<T>
@@ -642,7 +786,7 @@ export class XiaomiNotesService {
   private assertUpstreamAvailable(operation: string) {
     if (this.credentialsInvalid) {
       this.recordAudit(operation, 'blocked', 0, new ServiceUnavailableException('credentials invalid'))
-      throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 Terra Server' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
+      throw new ServiceUnavailableException(hasEnvironmentXiaomiCloudCookie() ? '小米云登录凭证已失效，请更新服务端环境变量并重启 synyFlow 服务端' : '小米云登录凭证已失效，请在小米笔记页面更新完整 Cookie')
     }
     if (!this.isCircuitOpen()) return
     const retryAfter = Math.max(1, Math.ceil((this.circuitOpenedUntil - Date.now()) / 1000))
@@ -716,9 +860,9 @@ export class XiaomiNotesService {
   }
 
   private normalizeLimit(limit?: number) {
-    if (limit === undefined) return 100
+    if (limit === undefined) return 30
     if (!Number.isFinite(limit)) throw new BadRequestException('limit 必须是数字')
-    return Math.max(1, Math.min(200, Math.trunc(limit)))
+    return Math.max(1, Math.min(100, Math.trunc(limit)))
   }
 
   private compactText(value: string) {

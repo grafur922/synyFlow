@@ -17,6 +17,7 @@ import { PromptInjectionScanner } from './prompt-injection-scanner'
 import { digest, RagIndexer } from './rag-indexer'
 import { ExternalRagProvider } from './external-rag.provider'
 import { AliyunEmbeddingProvider } from './aliyun-embedding.provider'
+import { RerankProvider } from './rerank.provider'
 import { LanceDbVectorStore } from './lancedb-vector.store'
 import { DEFAULT_RAG_EMBEDDING_SETTINGS } from './rag.model'
 import type {
@@ -56,6 +57,7 @@ type Candidate = {
   vectorScore: number
   titleBoost: number
   score: number
+  rerankScore?: number
 }
 
 @Injectable()
@@ -74,6 +76,7 @@ export class RagService {
     private readonly resourcesService: ResourcesService,
     private readonly externalProvider: ExternalRagProvider,
     private readonly aliyunEmbeddingProvider: AliyunEmbeddingProvider,
+    private readonly rerankProvider: RerankProvider,
     private readonly vectorStore: LanceDbVectorStore
   ) {
     const encryptionSecret = getDataEncryptionSecret()
@@ -330,11 +333,17 @@ export class RagService {
     await this.mutate((state) => {
       const entry = state.syncLedger.find((item) => item.source === 'xiaomi-note' && item.sourceItemId === note.id)
       if (!entry) return
-      entry.remoteModifyDate = note.modifyDate
+      entry.remoteModifyDate = Number(note.modifyDate) || entry.remoteModifyDate
       entry.remoteTag = note.tag
       entry.lastSeenGeneration = generation
       entry.lastSeenAt = Date.now()
       if (entry.state !== 'failed') entry.state = 'active'
+
+      // 自动校正已有文档的真实历史修改时间
+      const doc = state.documents.find((d) => d.id === entry.ragDocumentId)
+      if (doc && note.modifyDate && doc.updatedAt !== Number(note.modifyDate)) {
+        doc.updatedAt = Number(note.modifyDate)
+      }
     })
   }
 
@@ -376,6 +385,7 @@ export class RagService {
         const userTags = current.userTags || []
         const tags = this.normalizeTags([...sourceTags, ...userTags])
         const metadataChanged = current.title !== title || current.sourceRevision !== sourceRevision || current.tags.join('\0') !== tags.join('\0')
+        const realUpdatedAt = Number(note.modifyDate) || Number(note.createDate) || current.updatedAt || now
         outcome = contentChanged || metadataChanged ? 'updated' : 'skipped'
         state.documents[index] = {
           ...current,
@@ -395,7 +405,7 @@ export class RagService {
           sensitiveFindings: contentChanged ? this.scanSensitive(content) : current.sensitiveFindings,
           injectionFindings: contentChanged ? this.injectionScanner.scan(content) : current.injectionFindings,
           chunkCount: nextChunks.length,
-          updatedAt: Math.max(now, Number(note.modifyDate) || now),
+          updatedAt: realUpdatedAt,
           indexedAt: contentChanged ? now : current.indexedAt
         }
         if (contentChanged) state.chunks = [...state.chunks.filter((chunk) => chunk.documentId !== current.id), ...nextChunks]
@@ -403,7 +413,8 @@ export class RagService {
         if (state.documents.length >= MAX_DOCUMENTS) throw new BadRequestException('RAG document limit reached')
         documentId = ledger?.ragDocumentId || randomUUID()
         nextChunks = this.indexer.index(documentId, content)
-        const nowCreated = Number(note.createDate) || now
+        const realCreatedAt = Number(note.createDate) || Number(note.modifyDate) || now
+        const realUpdatedAt = Number(note.modifyDate) || Number(note.createDate) || now
         const privacy: RagPrivacy = state.embeddingSettings.xiaomiDefaultPrivacy || 'private'
         const document: RagDocument = {
           id: documentId,
@@ -423,8 +434,8 @@ export class RagService {
           sensitiveFindings: this.scanSensitive(content),
           injectionFindings: this.injectionScanner.scan(content),
           chunkCount: nextChunks.length,
-          createdAt: nowCreated,
-          updatedAt: Math.max(now, Number(note.modifyDate) || now),
+          createdAt: realCreatedAt,
+          updatedAt: realUpdatedAt,
           indexedAt: now
         }
         state.documents.push(document)
@@ -609,9 +620,36 @@ export class RagService {
       score: 0
     }))
     const maxKeyword = Math.max(0, ...candidates.map((candidate) => candidate.keywordRaw))
+    const asksForPhone = /手机|电话|号码|tel|phone|mobile/i.test(query)
+    const asksForEmail = /邮箱|邮件|email|mail/i.test(query)
+    const asksForUrl = /网址|链接|url|link|网站/i.test(query)
+    const asksForRecent = /最近|近[0-9一二三四五六七两]+天|近[0-9一二三四五六七两]+周|今天|昨天|前天|本周|最新|近况|近来|近期/i.test(query)
+    const now = Date.now()
+
     for (const candidate of candidates) {
       const keyword = maxKeyword ? candidate.keywordRaw / maxKeyword : 0
-      candidate.score = 0.65 * keyword + 0.35 * candidate.vectorScore + candidate.titleBoost
+      let patternBoost = 0
+      if (asksForPhone && /1[3-9]\d{9}/.test(candidate.chunk.text)) {
+        patternBoost += 0.45
+      }
+      if (asksForEmail && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(candidate.chunk.text)) {
+        patternBoost += 0.35
+      }
+      if (asksForUrl && /https?:\/\/[^\s]+/i.test(candidate.chunk.text)) {
+        patternBoost += 0.35
+      }
+      if (asksForRecent) {
+        const ageHours = Math.max(0, (now - candidate.document.updatedAt) / (1000 * 60 * 60))
+        if (ageHours <= 72) {
+          patternBoost += 0.65 // 3 天内笔记强召回加权
+        } else if (ageHours <= 168) {
+          patternBoost += 0.40 // 7 天内笔记召回加权
+        } else if (ageHours <= 720) {
+          patternBoost += 0.15 // 30 天内笔记加权
+        }
+      }
+
+      candidate.score = 0.55 * keyword + 0.25 * candidate.vectorScore + candidate.titleBoost + patternBoost
       if (candidate.chunk.injectionRisk === 'medium') candidate.score *= 0.8
     }
 
@@ -651,11 +689,40 @@ export class RagService {
     }
     candidates.sort((a, b) => b.score - a.score || b.document.updatedAt - a.document.updatedAt)
 
+    let rerankProviderName = ''
+    if (candidates.length > 0) {
+      const topCandidates = candidates.slice(0, 24)
+      const rerankInput = topCandidates.map((c) => ({
+        id: c.chunk.id,
+        text: c.chunk.text,
+        score: c.score,
+        keywordScore: maxKeyword ? c.keywordRaw / maxKeyword : 0,
+        vectorScore: c.vectorScore
+      }))
+      const rerankOutput = await this.rerankProvider.rerank(query, rerankInput, 15)
+      rerankProviderName = rerankOutput.provider
+      if (rerankOutput.provider === 'aliyun-gte-rerank') {
+        externalRequests = true
+      }
+      const scoreMap = new Map(rerankOutput.results.map((r) => [r.id, r.relevanceScore]))
+      for (const candidate of candidates) {
+        const rerankScore = scoreMap.get(candidate.chunk.id)
+        if (rerankScore !== undefined) {
+          candidate.rerankScore = rerankScore
+          candidate.score = 0.25 * candidate.score + 0.75 * rerankScore
+        } else {
+          candidate.score *= 0.15
+        }
+        if (candidate.chunk.injectionRisk === 'medium') candidate.score *= 0.8
+      }
+      candidates.sort((a, b) => b.score - a.score || b.document.updatedAt - a.document.updatedAt)
+    }
+
     if (external && candidates.length) {
-      const rerankCandidates = candidates.slice(0, 24)
-      const similarities = await this.externalProvider.similarityScores(query, rerankCandidates.map((candidate) => candidate.chunk.text))
+      const externalCandidates = candidates.slice(0, 24)
+      const similarities = await this.externalProvider.similarityScores(query, externalCandidates.map((candidate) => candidate.chunk.text))
       externalRequests = true
-      const similarityByChunk = new Map(rerankCandidates.map((candidate, index) => [candidate.chunk.id, similarities[index]]))
+      const similarityByChunk = new Map(externalCandidates.map((candidate, index) => [candidate.chunk.id, similarities[index]]))
       for (const candidate of candidates) {
         const similarity = similarityByChunk.get(candidate.chunk.id)
         if (similarity === undefined) {
@@ -724,7 +791,8 @@ export class RagService {
           ? this.externalProvider.getStatus().embeddingModel || 'openai-compatible'
           : retrievalMode === 'hybrid' ? settings.model : this.embeddingProvider.id,
         answer: answerProvider,
-        externalRequests
+        externalRequests,
+        rerank: rerankProviderName || undefined
       },
       generatedAt: Date.now(),
       retrieval: { mode: retrievalMode, reason: retrievalReason || undefined }

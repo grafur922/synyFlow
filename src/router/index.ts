@@ -4,6 +4,12 @@ const routes = [
   { path: '/', redirect: '/todo' },
   { path: '/dashboard', redirect: '/todo' },
   { path: '/tasks', redirect: '/todo' },
+  { path: '/chat', redirect: '/agent' },
+  {
+    path: '/agent',
+    name: 'AgentWorkspace',
+    component: () => import('../views/AgentWorkspace.vue')
+  },
   {
     path: '/todo',
     name: 'Todo',

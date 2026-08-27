@@ -37,6 +37,8 @@ module.exports = {
         "surface-dim": "var(--color-surface-dim)",
         "surface-container-low": "var(--color-surface-container-low)",
         "surface-bright": "var(--color-surface-bright)",
+        "card-active-border": "var(--color-card-active-border)",
+        "card-active-ring": "var(--color-card-active-ring)",
         "on-tertiary-container": "#ffffff",
         "on-secondary": "#ffffff",
         "outline": "#717978",
@@ -71,5 +73,6 @@ module.exports = {
   },
   plugins: [
     require('@tailwindcss/forms'),
+    require('tailwindcss-animate'),
   ],
 }

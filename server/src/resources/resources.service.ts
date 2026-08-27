@@ -310,13 +310,13 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
     this.assertSource(source)
     this.assertType(type)
     if (incoming.length > MAX_RESOURCES) throw new BadRequestException('Resource batch is too large')
-    for (const resource of incoming) {
-      if (resource.source !== source || resource.type !== type || !this.isResource(resource) || !this.isContext(resource.context)) {
-        throw new BadRequestException('Resource batch contains an invalid item')
-      }
+    const sanitizedBatch: Resource[] = []
+    for (const raw of incoming) {
+      if (raw.source !== source || raw.type !== type) continue
+      const item = this.sanitizeResource(raw)
+      sanitizedBatch.push(item)
     }
-    const incomingIds = new Set(incoming.map((item) => item.id))
-    if (incomingIds.size !== incoming.length) throw new BadRequestException('Resource batch contains duplicate ids')
+    const incomingIds = new Set(sanitizedBatch.map((item) => item.id))
     const now = Date.now()
     let tombstoned = 0
     await this.store.update((resources) => {
@@ -335,14 +335,14 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
         .sort((a, b) => (b.deletedAt || b.indexedAt) - (a.deletedAt || a.indexedAt))
         .slice(0, MAX_TOMBSTONES_PER_SOURCE)
       const others = resources.filter((item) => !(item.source === source && item.type === type))
-      const next = [...others, ...incoming, ...tombstones, ...retainedTombstones]
+      const next = [...others, ...sanitizedBatch, ...tombstones, ...retainedTombstones]
       if (next.length > MAX_RESOURCES) throw new BadRequestException('Resource index limit reached')
       return next
     })
     return {
       source,
       type,
-      indexed: incoming.length,
+      indexed: sanitizedBatch.length,
       tombstoned
     }
   }
@@ -351,13 +351,13 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
     this.assertSource(source)
     this.assertType(type)
     if (incoming.length > MAX_RESOURCES) throw new BadRequestException('Resource batch is too large')
-    for (const resource of incoming) {
-      if (resource.source !== source || resource.type !== type || !this.isResource(resource) || !this.isContext(resource.context)) {
-        throw new BadRequestException('Resource batch contains an invalid item')
-      }
+    const sanitizedBatch: Resource[] = []
+    for (const raw of incoming) {
+      if (raw.source !== source || raw.type !== type) continue
+      const item = this.sanitizeResource(raw)
+      sanitizedBatch.push(item)
     }
-    const incomingById = new Map(incoming.map((item) => [item.id, item]))
-    if (incomingById.size !== incoming.length) throw new BadRequestException('Resource batch contains duplicate ids')
+    const incomingById = new Map(sanitizedBatch.map((item) => [item.id, item]))
     await this.store.update((resources) => {
       const seen = new Set<string>()
       const next = resources.map((item) => {
@@ -366,13 +366,57 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
         seen.add(item.id)
         return replacement
       })
-      for (const resource of incoming) {
+      for (const resource of sanitizedBatch) {
         if (!seen.has(resource.id)) next.push(resource)
       }
       if (next.length > MAX_RESOURCES) throw new BadRequestException('Resource index limit reached')
       return next
     })
-    return { source, type, indexed: incoming.length, tombstoned: 0 }
+  }
+
+  private sanitizeResource(raw: Resource): Resource {
+    const title = String(raw.title || '未命名资源').slice(0, 500)
+    const summary = String(raw.summary || '').slice(0, 2000)
+    const content = String(raw.content || '').slice(0, MAX_RESOURCE_CONTENT)
+    const rawTags = Array.isArray(raw.tags) ? raw.tags : []
+    const tags = rawTags.map((t) => String(t).slice(0, 64)).filter(Boolean)
+    const privacy = PRIVACY_LEVELS.has(raw.privacy) ? raw.privacy : 'private'
+    const rawStart = Number(raw.createdAt) || Date.now()
+    const rawEnd = Number(raw.updatedAt) || rawStart
+    const createdAt = Math.min(rawStart, rawEnd)
+    const updatedAt = Math.max(rawStart, rawEnd)
+    const indexedAt = Number(raw.indexedAt) || Date.now()
+
+    const context: ResourceContext = {
+      projects: Array.isArray(raw.context?.projects)
+        ? raw.context!.projects.map((p) => String(p).trim().slice(0, 120)).filter(Boolean)
+        : [],
+      time: {
+        startAt: createdAt,
+        endAt: updatedAt
+      },
+      locations: Array.isArray(raw.context?.locations) ? raw.context!.locations : []
+    }
+
+    return {
+      id: String(raw.id).slice(0, 300),
+      type: raw.type,
+      source: raw.source,
+      sourceId: String(raw.sourceId || raw.id).slice(0, 200),
+      title,
+      summary,
+      content,
+      tags,
+      privacy,
+      context,
+      archived: Boolean(raw.archived),
+      deleted: Boolean(raw.deleted),
+      deletedAt: raw.deletedAt ? Number(raw.deletedAt) : undefined,
+      createdAt,
+      updatedAt,
+      indexedAt,
+      metadata: this.isRecord(raw.metadata) ? raw.metadata : {}
+    }
   }
 
   async syncTasks() {
@@ -429,10 +473,12 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
 
       const metadata = await this.metadataService.findAll()
       const metadataById = new Map(metadata.map((item) => [item.noteId, item]))
-      const detailCandidates = mode === 'incremental'
+      const changedSummaries = mode === 'incremental'
         ? summaries
         : summaries.filter((note) => this.xiaomiSummaryChanged(note, existingBySourceId.get(note.id)))
-      const details = await this.mapConcurrent(detailCandidates, DETAIL_CONCURRENCY, (note) => this.xiaomiNotesService.findOne(note.id, true))
+      // 限制单次详情抓取上限为 30 篇并优先复用本地缓存，避免一次性并发发送大量远端网络请求
+      const detailCandidates = changedSummaries.slice(0, 30)
+      const details = await this.mapConcurrent(detailCandidates, DETAIL_CONCURRENCY, (note) => this.xiaomiNotesService.findOne(note.id, false))
       const detailsById = new Map(details.map((note) => [note.id, note]))
       const indexedAt = Date.now()
       const mapped = summaries.map((summary) => {
@@ -807,28 +853,48 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
 
   private xiaomiNoteToResource(note: XiaomiNote, metadata: XiaomiNoteMetadata | undefined, previous: Resource | undefined, now: number, folderTitle?: string): Resource {
     const previousContext = previous ? this.contextOf(previous) : undefined
+    const title = (note.title || '未命名小米笔记').slice(0, 500)
+    const summary = (note.preview || '').slice(0, 2000)
+    const content = (note.content ?? previous?.content ?? '').slice(0, MAX_RESOURCE_CONTENT)
+
+    const rawStart = Number(note.createDate) || Number(previousContext?.time?.startAt) || Number(previous?.createdAt) || now
+    const rawEnd = Number(note.modifyDate) || Number(previousContext?.time?.endAt) || Number(previous?.updatedAt) || rawStart
+    const startAt = Math.min(rawStart, rawEnd)
+    const endAt = Math.max(rawStart, rawEnd)
+
+    const rawTags = metadata?.tags || []
+    const tags = Array.isArray(rawTags)
+      ? rawTags.map((t) => String(t).slice(0, 64)).filter(Boolean)
+      : []
+
+    const folderProject = folderTitle ? String(folderTitle).trim().slice(0, 120) : undefined
+    const prevProjects = Array.isArray(previousContext?.projects)
+      ? previousContext!.projects.map((p) => String(p).trim().slice(0, 120)).filter(Boolean)
+      : []
+    const projects = folderProject ? [folderProject] : prevProjects
+
     const resource: Resource = {
       id: `xiaomi:note:${note.id}`,
       type: 'note',
       source: 'xiaomi',
-      sourceId: note.id,
-      title: note.title,
-      summary: note.preview,
-      content: note.content ?? previous?.content ?? '',
-      tags: metadata?.tags || [],
+      sourceId: String(note.id),
+      title,
+      summary,
+      content,
+      tags,
       privacy: metadata?.privacy || 'private',
       context: {
-        projects: folderTitle ? [folderTitle] : previousContext?.projects || [],
+        projects,
         time: {
-          startAt: note.createDate || previousContext?.time?.startAt,
-          endAt: note.modifyDate || previousContext?.time?.endAt
+          startAt,
+          endAt
         },
         locations: []
       },
       archived: metadata?.archived || false,
       deleted: false,
-      createdAt: note.createDate || previous?.createdAt || now,
-      updatedAt: note.modifyDate || previous?.updatedAt || now,
+      createdAt: startAt,
+      updatedAt: endAt,
       indexedAt: now,
       metadata: {
         folderId: note.folderId,
