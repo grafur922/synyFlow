@@ -6,15 +6,18 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+docx/
+design/
 node_modules
 dist
 dist-ssr
 *.local
 .env
+.agent
+.vscode
 .env.*
 !.env.example
-
+data/
 # Tauri and mobile build output
 src-tauri/target
 src-tauri/gen/android/app/build

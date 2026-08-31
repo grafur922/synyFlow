@@ -1,6 +1,6 @@
-# Terra Hub
+# synyFlow
 
-Terra Hub 是一个本地优先的个人聚合工作区，基于 Vue 3、Tauri v2 与 NestJS 构建。集成待办事项、小米笔记、知识库 (RAG)、RSS 阅读器、旅行规划、博客与 AI 智能体等模块。
+synyFlow 是一个本地优先的个人聚合工作区，基于 Vue 3、Tauri v2 与 NestJS 构建。集成待办事项、小米笔记、知识库 (RAG)、行程、博客与 AI 智能体等模块。
 
 ---
 
